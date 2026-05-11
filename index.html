@@ -8,21 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- 飞书 JSAPI：主 CDN 失败时自动切换备用 CDN -->
-<script>
-(function(){
-  var src='https://lf1-cdn-tos.bytegoofy.com/obj/eden-cn/fejuspahpsumd_lfsic/js/feishu-jsapi-2.5.0.js';
-  var s=document.createElement('script');
-  s.src=src;
-  s.onerror=function(){
-    console.warn('[Feishu JSAPI] 主 CDN 失败，尝试备用...');
-    var s2=document.createElement('script');
-    s2.src='https://open-feishu-cn.bytegoofy.com/open-apis/js-sdk/feishu-jsapi-2.5.0.js';
-    document.head.appendChild(s2);
-  };
-  document.head.appendChild(s);
-})();
-</script>
+<!-- 飞书工作台 H5 应用：window.dd 由飞书客户端自动注入，无需手动引入 JSAPI 脚本 -->
 <script>
 function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString();}
 // ========== doLogin 独立定义（放在最前面确保可用）==========
@@ -115,6 +101,35 @@ window._resetLoginBtn = function(){
     return false;
   }
 
+  // 飞书企业 CorpId（必须填写！在飞书开放平台→开发者后台→企业信息里找）
+  window._FEISHU_CORP_ID = 'YOUR_CORP_ID_HERE';
+
+  // 显示飞书环境详细诊断信息（调试用）
+  function showFeishuDebugInfo(){
+    var ddStatus = typeof window.dd;
+    var ddRuntime = '不存在';
+    var ddReady = 'false';
+    if(window.dd){
+      ddStatus = '存在';
+      if(window.dd.runtime){ ddRuntime = '存在'; }
+      if(typeof window.dd.ready === 'function'){ ddReady = '存在'; }
+    }
+    var info = [
+      'dd: ' + ddStatus,
+      'dd.runtime: ' + ddRuntime,
+      'dd.ready: ' + ddReady,
+      'UA: ' + navigator.userAgent.substring(0, 40),
+      'corpId: ' + (window._FEISHU_CORP_ID || '(未设置)')
+    ];
+    var t = document.getElementById('feishuDebugTip');
+    if(t){
+      t.innerHTML = '🔍 飞书诊断:<br>' + info.join('<br>');
+      t.style.fontSize = '11px';
+      t.style.lineHeight = '1.5';
+      t.style.textAlign = 'left';
+    }
+  }
+
   // 等待飞书 JSAPI 就绪（最多等 15 秒）
   function waitForFeishuJSAPI(timeout){
     timeout = timeout || 15000; // 默认 15 秒
@@ -172,7 +187,7 @@ window._resetLoginBtn = function(){
         var done = false;
         var timeout = setTimeout(function(){ if(!done){ done=true; resolve(null); } }, 8000);
         window.dd.runtime.permission.requestAuthCode({
-          corpId: '',
+          corpId: window._FEISHU_CORP_ID || '',
           onSuccess: function(res){
             if(done) return;
             done = true;
@@ -231,6 +246,9 @@ window._resetLoginBtn = function(){
         tip.textContent = '📡 检测到飞书环境，正在尝试免登...';
         loginCard.insertBefore(tip, loginCard.firstChild);
       }
+
+      // 显示环境诊断信息
+      showFeishuDebugInfo();
 
       window._feishuAutoLogin().then(function(user){
         var t = document.getElementById('feishuDebugTip');
