@@ -144,12 +144,12 @@ window._resetLoginBtn = function(){
     return waitForFeishuJSAPI(5000).then(function(ready){
       if(!ready){
         var t = document.getElementById('feishuDebugTip');
-        if(t){t.style.background='#dc2626'; t.textContent='❌ 飞书 JSAPI 加载超时，请检查网络后重试';}
+        if(t){t.style.background='#dc2626'; t.textContent='❌ 飞书 JSAPI 加载超时，请检查网络后重试'; t.dataset.detailed='1';}
         return Promise.resolve(null);
       }
       if(!window.dd || !window.dd.runtime || !window.dd.runtime.permission){
         var t2 = document.getElementById('feishuDebugTip');
-        if(t2){t2.style.background='#dc2626'; t2.textContent='❌ 飞书 JSAPI 权限未就绪（dd.runtime.permission 不存在）';}
+        if(t2){t2.style.background='#dc2626'; t2.textContent='❌ 飞书 JSAPI 权限未就绪（dd.runtime.permission 不存在）'; t2.dataset.detailed='1';}
         return Promise.resolve(null);
       }
       return new Promise(function(resolve){
@@ -176,7 +176,7 @@ window._resetLoginBtn = function(){
                 var errMsg = (data && data.error) ? data.error : 'Edge Function 返回失败';
                 console.warn('[Feishu] 免登失败:', errMsg);
                 var t = document.getElementById('feishuDebugTip');
-                if(t){t.style.background='#dc2626'; t.textContent='❌ 免登失败: '+errMsg.substring(0,80);}
+                if(t){t.style.background='#dc2626'; t.textContent='❌ 免登失败: '+errMsg.substring(0,80); t.dataset.detailed='1';}
                 resolve(null);
               }
             })
@@ -184,7 +184,7 @@ window._resetLoginBtn = function(){
               var errMsg = err ? err.toString() : '网络请求失败';
               console.warn('[Feishu] 请求失败:', err);
               var t = document.getElementById('feishuDebugTip');
-              if(t){t.style.background='#dc2626'; t.textContent='❌ 请求 Edge Function 失败: '+errMsg.substring(0,80);}
+              if(t){t.style.background='#dc2626'; t.textContent='❌ 请求 Edge Function 失败: '+errMsg.substring(0,80); t.dataset.detailed='1';}
               resolve(null);
             });
           },
@@ -194,7 +194,7 @@ window._resetLoginBtn = function(){
             clearTimeout(timeout);
             console.warn('[Feishu] 获取 code 失败:', err);
             var t=document.getElementById('feishuDebugTip');
-            if(t){t.style.background='#dc2626'; t.textContent='❌ 获取飞书授权码失败: '+(err.msg||JSON.stringify(err));}
+            if(t){t.style.background='#dc2626'; t.textContent='❌ 获取飞书授权码失败: '+(err.msg||JSON.stringify(err)); t.dataset.detailed='1';}
             resolve(null);
           }
         });
@@ -220,6 +220,13 @@ window._resetLoginBtn = function(){
         var t = document.getElementById('feishuDebugTip');
         if(user){
           if(t){t.style.background='#16a34a'; t.textContent='✅ 飞书免登成功，正在进入...';}
+        } else {
+          // 只有当没有详细错误信息时才显示通用提示
+          if(t && !t.dataset.detailed){
+            t.style.background='#dc2626';
+            t.textContent='❌ 飞书免登失败（原因见上方提示）';
+          }
+        }
           setTimeout(function(){
             if(typeof window.enterApp === 'function'){ window.enterApp(); }
             else {
@@ -232,7 +239,11 @@ window._resetLoginBtn = function(){
             }
           }, 800);
         } else {
-          if(t){t.style.background='#dc2626'; t.textContent='❌ 飞书免登失败，请手动登录（查看控制台详情）';}
+          // 只有当没有详细错误信息时才显示通用提示
+          if(t && !t.dataset.detailed){
+            t.style.background='#dc2626';
+            t.textContent='❌ 飞书免登失败（查看上方提示）';
+          }
         }
       });
     });
