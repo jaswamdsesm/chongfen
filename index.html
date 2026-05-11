@@ -220,13 +220,6 @@ window._resetLoginBtn = function(){
         var t = document.getElementById('feishuDebugTip');
         if(user){
           if(t){t.style.background='#16a34a'; t.textContent='✅ 飞书免登成功，正在进入...';}
-        } else {
-          // 只有当没有详细错误信息时才显示通用提示
-          if(t && !t.dataset.detailed){
-            t.style.background='#dc2626';
-            t.textContent='❌ 飞书免登失败（原因见上方提示）';
-          }
-        }
           setTimeout(function(){
             if(typeof window.enterApp === 'function'){ window.enterApp(); }
             else {
