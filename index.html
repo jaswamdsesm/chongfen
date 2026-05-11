@@ -127,6 +127,7 @@ window._resetLoginBtn = function(){
       t.style.fontSize = '11px';
       t.style.lineHeight = '1.5';
       t.style.textAlign = 'left';
+      t.style.display = 'block';
     }
   }
 
@@ -556,6 +557,9 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 </style>
 </head>
 <body>
+<!-- 飞书 JSAPI 调试提示条（始终渲染，由 JS 控制显示/内容） -->
+<div id="feishuDebugTip" style="position:fixed;top:0;left:0;right:0;background:#1e40af;color:#fff;padding:6px 12px;font-size:11px;line-height:1.5;z-index:99999;display:none;text-align:left;"></div>
+
 <!-- JS 存活检测：脚本正常执行时会移除此元素 -->
 <div id="jsAliveCheck" style="position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;text-align:center;padding:8px;font-size:13px;z-index:99999;">⚠️ JavaScript 未执行 — 请按 F12 打开控制台查看报错</div>
 <script>try{document.getElementById('jsAliveCheck').remove();console.log('[OK] JS is alive');}catch(e){console.error('JS dead:',e);}</script>
