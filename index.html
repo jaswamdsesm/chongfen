@@ -8,6 +8,21 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- 飞书 JSAPI：主 CDN 失败时自动切换备用 CDN -->
+<script>
+(function(){
+  var src='https://lf1-cdn-tos.bytegoofy.com/obj/eden-cn/fejuspahpsumd_lfsic/js/feishu-jsapi-2.5.0.js';
+  var s=document.createElement('script');
+  s.src=src;
+  s.onerror=function(){
+    console.warn('[Feishu JSAPI] 主 CDN 失败，尝试备用...');
+    var s2=document.createElement('script');
+    s2.src='https://open-feishu-cn.bytegoofy.com/open-apis/js-sdk/feishu-jsapi-2.5.0.js';
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s);
+})();
+</script>
 <script>
 function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString();}
 // ========== doLogin 独立定义（放在最前面确保可用）==========
@@ -100,16 +115,17 @@ window._resetLoginBtn = function(){
     return false;
   }
 
-  // 等待飞书 JSAPI 就绪
+  // 等待飞书 JSAPI 就绪（最多等 15 秒）
   function waitForFeishuJSAPI(timeout){
+    timeout = timeout || 15000; // 默认 15 秒
     return new Promise(function(resolve){
       if(window.dd && window.dd.runtime){ resolve(true); return; }
       var elapsed = 0;
       var timer = setInterval(function(){
-        elapsed += 100;
+        elapsed += 200;
         if(window.dd && window.dd.runtime){ clearInterval(timer); resolve(true); }
-        else if(elapsed >= (timeout||5000)){ clearInterval(timer); resolve(false); }
-      }, 100);
+        else if(elapsed >= timeout){ clearInterval(timer); resolve(false); }
+      }, 200);
     });
   }
 
