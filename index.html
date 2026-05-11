@@ -142,7 +142,14 @@ window._resetLoginBtn = function(){
 
     // 4. 飞书环境 → 等待 JSAPI 就绪 → 获取 auth code
     return waitForFeishuJSAPI(5000).then(function(ready){
-      if(!ready || !window.dd || !window.dd.runtime || !window.dd.runtime.permission){
+      if(!ready){
+        var t = document.getElementById('feishuDebugTip');
+        if(t){t.style.background='#dc2626'; t.textContent='❌ 飞书 JSAPI 加载超时，请检查网络后重试';}
+        return Promise.resolve(null);
+      }
+      if(!window.dd || !window.dd.runtime || !window.dd.runtime.permission){
+        var t2 = document.getElementById('feishuDebugTip');
+        if(t2){t2.style.background='#dc2626'; t2.textContent='❌ 飞书 JSAPI 权限未就绪（dd.runtime.permission 不存在）';}
         return Promise.resolve(null);
       }
       return new Promise(function(resolve){
@@ -166,11 +173,20 @@ window._resetLoginBtn = function(){
                 localStorage.setItem('crm_user', JSON.stringify(data.user));
                 resolve(data.user);
               } else {
-                console.warn('[Feishu] 免登失败:', data.error);
+                var errMsg = (data && data.error) ? data.error : 'Edge Function 返回失败';
+                console.warn('[Feishu] 免登失败:', errMsg);
+                var t = document.getElementById('feishuDebugTip');
+                if(t){t.style.background='#dc2626'; t.textContent='❌ 免登失败: '+errMsg.substring(0,80);}
                 resolve(null);
               }
             })
-            .catch(function(err){ console.warn('[Feishu] 请求失败:', err); resolve(null); });
+            .catch(function(err){
+              var errMsg = err ? err.toString() : '网络请求失败';
+              console.warn('[Feishu] 请求失败:', err);
+              var t = document.getElementById('feishuDebugTip');
+              if(t){t.style.background='#dc2626'; t.textContent='❌ 请求 Edge Function 失败: '+errMsg.substring(0,80);}
+              resolve(null);
+            });
           },
           onFail: function(err){
             if(done) return;
