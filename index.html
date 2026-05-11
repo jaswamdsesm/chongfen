@@ -1,0 +1,4067 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>客户信息库 v5.4.1</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString();}
+// ========== doLogin 独立定义（放在最前面确保可用）==========
+window._loginBusy = false;
+window.doLogin = function(){
+  if(window._loginBusy) return;
+  var name = (document.getElementById('loginName')||{}).value || '';
+  var uid = (document.getElementById('loginId')||{}).value || '';
+  name = name.trim(); uid = uid.trim();
+  if(!name){ alert('请输入姓名'); return; }
+  if(!uid){ alert('请输入密码'); return; }
+  
+  var btn = document.getElementById('loginBtn');
+  if(btn){ btn.textContent = '登录中…'; btn.style.opacity = '0.6'; }
+  window._loginBusy = true;
+  
+  // 检查 Supabase
+  if(!window.supabaseClient && window.supabase){
+    try{ window.supabaseClient = window.supabase.createClient(
+      'https://vekkbgscqpppcluhfwrv.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZla2tiZ3NjcXBwcGNsdWhmd3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDQ5ODIsImV4cCI6MjA5Mjc4MDk4Mn0.sLaNTrb7oF5yf2bgbR9LITtrYCaLqSm94a-bzaHKAbk'
+    ); }catch(e){ console.error('init err:',e); }
+  }
+  
+  if(!window.supabaseClient){
+    alert('数据库连接失败：Supabase SDK 未加载。\n可能原因：网络被墙/CDN不可访问\n请检查浏览器控制台(F12)确认。');
+    window._resetLoginBtn(); return;
+  }
+  
+  supabaseClient.from('members').select('*').eq('name', name)
+  .then(function(res){
+    var rows = res.data, err = res.error;
+    if(err){
+      alert('登录查询错误: ' + (err.message || JSON.stringify(err)));
+      window._resetLoginBtn(); return;
+    }
+    if(!rows || rows.length === 0){
+      alert('用户不存在: ' + name);
+      window._resetLoginBtn(); return;
+    }
+    var m = rows[0];
+    if(m.password !== uid){
+      alert('密码错误');
+      window._resetLoginBtn(); return;
+    }
+    // 登录成功
+    window.currentUser = {name: m.name, uid: m.uid, role: m.role || 'member'};
+    localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
+    
+    // 进入系统 - 先隐藏登录页，再等主脚本加载
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('appPage').classList.add('active');
+    document.getElementById('sidebarUserName').textContent = '\u5F53\u524D\u7528\u6237\uFF1A' + m.name;
+    
+    // 尝试调用 enterApp 或 loadDashboardStats（带重试）
+    var _enterRetries = 0;
+    function doEnter(){
+      if(typeof enterApp === 'function'){ enterApp(); return; }
+      if(typeof loadDashboardStats === 'function'){ loadDashboardStats(); return; }
+      _enterRetries++;
+      if(_enterRetries < 50){
+        setTimeout(doEnter, 100);
+      } else {
+        console.error('enterApp/loadDashboardStats not found after 50 retries (5s)');
+        alert('\u7CFB\u7EDF\u52A0\u8F7D\u4E0D\u5B8C\u6574\uFF0C\u8BF7\u5237\u65B0\u9875\u9762');
+      }
+    }
+    setTimeout(doEnter, 100);
+  })
+  .catch(function(e){
+    alert('登录异常: ' + (e.message || String(e)));
+    window._resetLoginBtn();
+  });
+};
+
+window._resetLoginBtn = function(){
+  window._loginBusy = false;
+  var btn = document.getElementById('loginBtn');
+  if(btn){ btn.textContent = '\u8FDB\u5165\u7EDF\u7EDF'; btn.style.opacity = ''; }
+};
+</script>
+<script>
+// ========== 飞书免登集成 ==========
+(function(){
+  // 是否在飞书环境
+  function isFeishuEnv(){
+    return !!(window.dd || window.h5sdk || window.H5SDK || /Feishu|Lark/i.test(navigator.userAgent));
+  }
+
+  // 动态加载飞书 JSAPI（不阻塞页面）
+  function loadFeishuJSAPI(){
+    return new Promise(function(resolve){
+      if(window.dd){ resolve(true); return; }
+      var s = document.createElement('script');
+      s.src = 'https://lf-cdn-tos.bytescm.com/object/eden-cn/yljh_kjlwj/ljhwZthlaukjlah/feishu-jsapi/2.5.0/js/feishu-jsapi-2.5.0.js';
+      s.onload = function(){ resolve(true); };
+      s.onerror = function(){ console.warn('[Feishu] JSAPI 加载失败，走普通登录'); resolve(false); };
+      document.head.appendChild(s);
+    });
+  }
+
+  // 飞书免登：获取用户身份
+  window._feishuAutoLogin = function(){
+    var steps = [];
+    // 1. 先检查 URL hash（OAuth 回调可能写入 session）
+    var hash = window.location.hash || '';
+    var m = hash.match(/session=([^&]+)/);
+    if(m){
+      try{
+        var session = JSON.parse(atob(m[1]));
+        window.history.replaceState(null,'','/');
+        window.currentUser = session;
+        localStorage.setItem('crm_user', JSON.stringify(session));
+        return Promise.resolve(session);
+      }catch(e){}
+    }
+
+    // 2. 检查本地存储
+    var saved = localStorage.getItem('crm_user');
+    if(saved){
+      try{
+        var u = JSON.parse(saved);
+        if(u && u.name && u.uid){ window.currentUser = u; return Promise.resolve(u); }
+      }catch(e){ localStorage.removeItem('crm_user'); }
+    }
+
+    // 3. 不在飞书环境，跳过免登
+    if(!isFeishuEnv()){ return Promise.resolve(null); }
+
+    // 4. 飞书环境 → 动态加载 JSAPI → 获取 auth code
+    return loadFeishuJSAPI().then(function(loaded){
+      if(!loaded || !window.dd){ return null; }
+      return new Promise(function(resolve){
+        var todo = function(){
+          if(!window.dd.runtime || !window.dd.runtime.permission){ resolve(null); return; }
+          window.dd.runtime.permission.requestAuthCode({
+            corpId: '',
+            onSuccess: function(res){
+              fetch('https://vekkbgscqpppcluhfwrv.supabase.co/functions/v1/feishu-auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({code: res.code})
+              })
+              .then(function(r){ return r.json(); })
+              .then(function(data){
+                if(data.success && data.user){
+                  window.currentUser = data.user;
+                  localStorage.setItem('crm_user', JSON.stringify(data.user));
+                  resolve(data.user);
+                } else {
+                  console.warn('[Feishu] 免登失败:', data.error);
+                  resolve(null);
+                }
+              })
+              .catch(function(err){ console.warn('[Feishu] 请求失败:', err); resolve(null); });
+            },
+            onFail: function(err){ console.warn('[Feishu] 获取 code 失败:', err); resolve(null); }
+          });
+        };
+        if(window.dd.ready){
+          window.dd.ready(function(){ todo(); });
+        } else {
+          todo();
+        }
+      });
+    });
+  };
+
+  // 页面加载时：如果在飞书环境，尝试自动登录
+  if(isFeishuEnv()){
+    window.addEventListener('DOMContentLoaded', function(){
+      window._feishuAutoLogin().then(function(user){
+        if(user){
+          // 自动登录成功 → 直接进入系统
+          if(typeof window.enterApp === 'function'){
+            window.enterApp();
+          } else {
+            // enterApp 还没加载，等待
+            var _retries = 0;
+            var _wait = setInterval(function(){
+              _retries++;
+              if(typeof window.enterApp === 'function'){
+                clearInterval(_wait);
+                window.enterApp();
+              } else if(_retries > 30){
+                clearInterval(_wait);
+              }
+            }, 200);
+          }
+        }
+      }).catch(function(){});
+    });
+  }
+})();
+</script>
+<script>
+// CDN 加载失败检测 + 备用 CDN
+window._supabaseLoadStatus = 'loading';
+var _sbEl = document.querySelector('script[src*="supabase"]');
+if(_sbEl){
+  _sbEl.onerror = function(){
+    console.warn('[CDN] jsdelivr failed, trying unpkg...');
+    var fb = document.createElement('script');
+    fb.src = 'https://unpkg.com/@supabase/supabase-js@2';
+    fb.onload = function(){ console.log('[CDN] unpkg OK'); };
+    fb.onerror = function(){ console.error('[CDN] both CDNs dead'); };
+    document.head.appendChild(fb);
+  };
+}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+
+/* 登录 */
+.login-page{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1e293b 0%,#0f172a 50%,#1e1b4b 100%)}
+.login-card{background:rgba(30,41,59,.85);border-radius:16px;padding:48px 40px;width:440px;max-width:90vw;backdrop-filter:blur(12px);border:1px solid rgba(148,163,184,.12);box-shadow:0 25px 80px rgba(0,0,0,.45)}
+.login-card h1{font-size:24px;font-weight:700;text-align:center;margin-bottom:8px;color:#f1f5f9}
+.login-card .subtitle{text-align:center;color:#94a3b8;font-size:13px;margin-bottom:32px}
+.login-card label{display:block;font-size:13px;color:#94a3b8;margin-bottom:6px;font-weight:500}
+.login-card input{width:100%;padding:11px 14px;border-radius:10px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.7);color:#e2e8f0;font-size:14px;outline:none;transition:all .2s;margin-bottom:18px}
+.login-card input:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.btn-login{width:100%;padding:12px;border:none;border-radius:10px;cursor:pointer;font-size:15px;font-weight:600;color:#fff;background:linear-gradient(135deg,#6366f1,#8b5cf6);transition:opacity .2s,transform .15s}
+.btn-login:hover{opacity:.88;transform:translateY(-1px)}
+
+/* 主布局 */
+.app{display:none;min-height:100vh}.app.active{display:flex}
+
+/* 侧边栏 */
+.sidebar{width:220px;min-height:100vh;background:#1e293b;border-right:1px solid rgba(148,163,184,.1);padding:28px 14px;position:fixed;left:0;top:0;display:flex;flex-direction:column}
+.sidebar-logo{font-size:17px;font-weight:700;color:#f1f5f9;margin-bottom:4px;letter-spacing:-.3px}
+.sidebar-desc{font-size:11px;color:#64748b;margin-bottom:28px}
+.nav-item{padding:10px 12px;border-radius:8px;font-size:14px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s;margin-bottom:3px;border:none;background:none;width:100%;text-align:left}
+.nav-item:hover{background:rgba(99,102,241,.08);color:#c7d2fe}
+.nav-item.active{background:rgba(99,102,241,.15);color:#818cf8;font-weight:600}
+.nav-icon{font-size:17px;width:22px;text-align:center}
+.sidebar-user{margin-top:auto;padding-top:20px;border-top:1px solid rgba(148,163,184,.1)}
+.user-info{font-size:12px;color:#64748b;margin-bottom:6px}
+.user-name{font-size:14px;font-weight:600;color:#e2e8f0}
+.btn-logout{padding:7px 12px;border:1px solid rgba(148,163,184,.15);border-radius:8px;background:transparent;color:#94a3b8;font-size:12px;cursor:pointer;width:100%;transition:all .15s}
+.btn-logout:hover{border-color:#ef4444;color:#ef4444}
+
+/* 主内容 */
+.main-content{margin-left:220px;flex:1;padding:32px 36px;max-width:1100px}
+
+/* 页面切换 */
+.page-section{display:none}.page-section.active{display:block;animation:fadeIn .25s ease-out}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.page-header{margin-bottom:24px}.page-header h2{font-size:22px;font-weight:700;color:#f1f5f9}.page-header p{font-size:13px;color:#64748b;margin-top:4px}
+
+.card{background:rgba(30,41,59,.65);border:1px solid rgba(148,163,184,.1);border-radius:14px;padding:24px 26px;margin-bottom:20px}
+.card-title{font-size:15px;font-weight:600;color:#e2e8f0;margin-bottom:18px}
+
+.form-group{margin-bottom:16px;display:flex;flex-direction:column}
+.form-group label{font-size:12px;color:#94a3b8;margin-bottom:6px;font-weight:500}
+.form-group input{padding:12px 16px;border-radius:10px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.55);color:#e2e8f0;font-size:15px;outline:none;transition:all .2s}
+.form-group input:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+
+.btn{padding:10px 24px;border:none;border-radius:9px;cursor:pointer;font-size:14px;font-weight:600;transition:all .2s}
+.btn-primary{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff}
+.btn-primary:hover{opacity:.86;transform:translateY(-1px)}
+.btn-danger{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff}.btn-danger:hover{opacity:.86}
+.btn-sm{padding:7px 16px;font-size:12px;border-radius:6px}
+
+.search-bar{display:flex;gap:12px;margin-bottom:18px;align-items:center}
+.search-bar input{flex:1;padding:10px 16px;border-radius:9px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.55);color:#e2e8f0;font-size:14px;outline:none}
+.search-bar input:focus{border-color:#6366f1}
+
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;padding:11px 14px;background:rgba(99,102,241,.08);color:#a5b4fc;font-weight:600;font-size:12px;white-space:nowrap;border-bottom:1px solid rgba(148,163,184,.12)}
+tbody td{padding:11px 14px;border-bottom:1px solid rgba(148,163,184,.06);color:#cbd5e1}
+tbody tr:hover{background:rgba(99,102,241,.04)}
+.owner-badge{display:inline-block;padding:3px 12px;border-radius:20px;font-size:11.5px;font-weight:600;min-width:48px;text-align:center;letter-spacing:.3px;background:rgba(99,102,241,.12);color:#a5b4fc;border:1px solid rgba(99,102,241,.15)}
+.owner-me{display:inline-block;padding:3px 12px;border-radius:20px;border:1px solid transparent;font-size:11.5px;font-weight:600;min-width:48px;text-align:center;letter-spacing:.3px;background:rgba(34,197,94,.12);color:#4ade80;border-color:rgba(34,197,94,.2)}
+
+/* 国家标签 */
+.country-tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:500;margin-left:6px;vertical-align:middle}
+
+/* Toast */
+.toast{position:fixed;top:24px;right:24px;padding:14px 22px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;max-width:400px;animation:slideIn .3s ease;line-height:1.5}
+.toast-success{background:#065f46;color:#a7f3d0;border:1px solid rgba(74,222,128,.25)}
+.toast-error{background:#7f1d1d;color:#fecaca;border:1px solid rgba(248,113,113,.25)}
+@keyframes slideIn{from{transform:translateX(60px);opacity:0}to{transform:none;opacity:1}}
+
+/* 查重弹窗 */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9998;justify-content:center;align-items:center}
+.modal-overlay.show{display:flex;animation:fadeIn .2s}
+.modal-box{background:#1e293b;border:1px solid rgba(148,163,184,.15);border-radius:16px;width:520px;max-width:90vw;padding:26px}
+.modal-box h3{font-size:17px;color:#f1f5f9;margin-bottom:14px}
+.dup-item{background:rgba(15,23,42,.5);border-radius:10px;padding:13px 16px;margin-bottom:8px;border-left:3px solid #f59e0b;font-size:13px}
+.modal-actions{display:flex;gap:10px;margin-top:16px;justify-content:flex-end}
+.modal-actions .btn{padding:9px 20px;font-size:13px}
+
+/* 统计 */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:22px}
+.stat-card{background:rgba(30,41,59,.65);border:1px solid rgba(148,163,184,.1);border-radius:12px;padding:18px 20px}
+.stat-num{font-size:28px;font-weight:800;color:#818cf8}
+.stat-label{font-size:12px;color:#64748b;margin-top:2px}
+
+/* 国家饼图 */
+#countryChartCard .card-title{margin-bottom:16px}
+#countryPieCanvas{display:block}
+#countryLegend .legend-item{display:flex;align-items:center;gap:8px;font-size:12px;color:#cbd5e1;padding:3px 0}
+#countryLegend .legend-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+#countryLegend .legend-name{min-width:70px;font-weight:500}
+#countryLegend .legend-pct{color:#94a3b8;flex:1;text-align:right}
+#countryLegend .legend-count{color:#64748b;min-width:40px;text-align:right}
+body.light-mode #countryLegend .legend-item{color:#334155}
+body.light-mode #countryLegend .legend-pct{color:#64748b}
+
+.empty-state{text-align:center;padding:44px 20px;color:#64748b;font-size:14px}
+.empty-state .icon{font-size:40px;margin-bottom:10px;opacity:.35}
+.loading{text-align:center;padding:28px;color:#64748b;font-size:13px}
+.spinner{display:inline-block;width:22px;height:22px;border:3px solid rgba(99,102,241,.15);border-top-color:#6366f1;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.config-area{margin-bottom:18px}
+.config-note{font-size:12px;color:#94a3b8;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:12px 16px;line-height:1.6}
+
+/* ========== Supabase 离线诊断条 ========== */
+.supabase-dead .login-page::before,
+body:has(.supabase-warn) .login-card::before{
+  content:'⚠️ 数据库连接不可用（CDN被墙或网络问题），请检查网络后刷新，或点击下方"修改数据库配置"切换连接方式';
+  display:block;background:rgba(220,38,38,.12);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:12px 16px;color:#fca5a5;font-size:12.5px;margin-bottom:20px;line-height:1.6;text-align:left;
+}
+body.light-mode .supabase-dead .login-page::before,
+body.light-mode:has(.supabase-warn) .login-card::before{background:rgba(220,38,38,.06);border-color:rgba(239,68,68,.25);color:#dc2626;}
+
+/* 日间/夜间模式切换 */
+.theme-toggle{position:fixed;top:16px;right:20px;padding:6px 14px;border-radius:10px;border:1px solid rgba(148,163,184,.25);background:rgba(30,41,59,.7);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .25s;z-index:100;user-select:none;box-shadow:0 2px 12px rgba(0,0,0,.15);color:#e2e8f0}
+.theme-toggle:hover{border-color:#818cf8;color:#c7d2fe;background:rgba(99,102,241,.2);box-shadow:0 4px 16px rgba(99,102,241,.25);transform:scale(1.03)}
+.theme-icon{font-size:16px;line-height:1}
+.theme-text{font-weight:500}
+
+/* 日间模式 */
+body.light-mode{background:#f8fafc;color:#1e293b}
+body.light-mode .login-page{background:linear-gradient(135deg,#e0e7ff 0%,#f8fafc 50%,#fef3c7 100%)}
+body.light-mode .login-card{background:rgba(255,255,255,.92);border-color:rgba(148,163,184,.25);box-shadow:0 15px 60px rgba(0,0,0,.08)}
+body.light-mode .login-card input{background:#f8fafc;border-color:#e2e8f0;color:#1e293b}
+body.light-mode .login-card h1{color:#1e293b}
+body.light-mode .login-card .subtitle{color:#64748b}
+body.light-mode .sidebar{background:#fff;border-right-color:#e2e8f0}
+body.light-mode .sidebar-logo{color:#1e293b}
+body.light-mode .sidebar-desc{color:#64748b}
+body.light-mode .nav-item{color:#475569}
+body.light-mode .nav-item:hover{background:rgba(99,102,241,.06);color:#4338ca}
+body.light-mode .nav-item.active{background:rgba(99,102,241,.1);color:#4338ca}
+body.light-mode .sidebar-user{border-top-color:#e2e8f0}
+body.light-mode .user-info{color:#64748b}
+body.light-mode .user-name{color:#1e293b}
+body.light-mode .main-content{}
+body.light-mode .page-header h2{color:#1e293b}
+body.light-mode .page-header p{color:#64748b}
+body.light-mode .card{background:#fff;border-color:#e2e8f0}
+body.light-mode .card-title{color:#1e293b}
+body.light-mode .form-group label{color:#475569}
+body.light-mode .form-group input{background:#f8fafc;border-color:#e2e8f0;color:#1e293b}
+body.light-mode .form-group input:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+body.light-mode .search-bar input{background:#fff;border-color:#e2e8f0;color:#1e293b}
+body.light-mode #mySearchInput{--input-bg: #fff !important;--input-color: #1e293b !important}
+body.light-mode textarea{background:#fff !important;border-color:#e2e8f0 !important;color:#334155 !important}
+body.light-mode #batchDetectedCount{color:#4338ca}
+body.light-mode thead th{background:rgba(99,102,241,.05);color:#4338ca}
+body.light-mode tbody td{color:#334155;border-bottom-color:#f1f5f9}
+body.light-mode tbody tr:hover{background:rgba(99,102,247,.03)}
+body.light-mode .owner-badge{background:rgba(99,102,241,.08);color:#4338ca;border-color:rgba(99,102,241,.18)}
+body.light-mode .owner-me{display:inline-block;padding:3px 12px;border-radius:20px;font-size:11.5px;font-weight:600;min-width:48px;text-align:center;letter-spacing:.3px;background:rgba(22,163,74,.08);color:#16a34a;border-color:rgba(22,163,74,.15)}
+body.light-mode .stat-card{background:#fff;border-color:#e2e8f0}
+body.light-mode .empty-state{color:#64748b}
+body.light-mode .loading{color:#64748b}
+body.light-mode .config-note{color:#92400e;background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2)}
+body.light-mode .phone-hint{color:#64748b}
+body.light-mode .modal-box{background:#fff;border-color:#e2e8f0}
+body.light-mode .modal-box h3{color:#1e293b}
+body.light-mode .dup-item{background:#f8fafc}
+body.light-mode .btn-logout{border-color:#cbd5e1;color:#64748b}
+body.light-mode .btn-logout:hover{border-color:#ef4444;color:#ef4444}
+body.light-mode .theme-toggle{background:rgba(255,255,255,.95);border-color:#cbd5e1;color:#4338ca;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+body.light-mode .theme-toggle:hover{border-color:#818cf8;color:#4338ca;background:#fff;box-shadow:0 4px 16px rgba(99,102,247,.2);transform:scale(1.03)}
+body.light-mode #loginThemeToggle{background:#fff!important;border-color:#e2e8f0!important;color:#4338ca!important}
+body.light-mode #loginThemeToggle:hover{border-color:#818cf8!important;background:#fff!important;color:#4338ca!important}
+.sort-select{padding:5px 14px;border-radius:20px;border:1px solid rgba(148,163,184,.2);background:rgba(30,41,59,.5);color:#cbd5e1;font-size:12.5px;cursor:pointer;outline:none}
+.sort-select option{background:#1e293b;color:#e2e8f0}
+body.light-mode .sort-select{background:#fff;border-color:#d1d5db;color:#374151}
+body.light-mode .sort-select option{background:#fff;color:#1e293b}
+body.light-mode #secMyCustomers input[type="date"],body.light-mode #secMyCustomers select{background:#f8fafc;border-color:#e2e8f0;color:#1e293b}
+body.light-mode #myDateBtn{background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(139,92,246,.08))!important;border-color:rgba(99,102,241,.3)!important;color:#4338ca!important}
+body.light-mode #ordDateBtn{background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(139,92,246,.08))!important;border-color:rgba(99,102,241,.3)!important;color:#4338ca!important}
+/* 日期下拉面板 - 主题适配（无内联背景，纯 CSS 控制） */
+#myDateDropdown{background:#1e293b;border:1px solid rgba(148,163,184,.15);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+#allDateDropdown{background:#1e293b;border:1px solid rgba(148,163,184,.15);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+#ordDateDropdown{background:#1e293b;border:1px solid rgba(148,163,184,.15);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+#myDateDropdown>div:first-child{color:#94a3b8}
+#allDateDropdown>div:first-child{color:#94a3b8}
+#myDateDropdown>div:nth-of-type(2){color:#94a3b8}
+#allDateDropdown>div:nth-of-type(2){color:#94a3b8}
+.date-sep{color:#64748b;font-size:12px}
+body.light-mode #myDateDropdown{background:#fff;border-color:#e2e8f0;box-shadow:0 12px 40px rgba(0,0,0,.12)}
+body.light-mode #allDateDropdown{background:#fff;border-color:#e2e8f0;box-shadow:0 12px 40px rgba(0,0,0,.12)}
+body.light-mode #myDateDropdown,body.light-mode #allDateDropdown,body.light-mode #ordDateDropdown{background:#fff;border-color:#e2e8f0;box-shadow:0 12px 40px rgba(0,0,0,.12)}
+/* 暗色模式日期面板背景 */
+#myDateDropdown,#allDateDropdown,#ordDateDropdown{background-color:rgba(30,41,59,.96);border:1px solid rgba(148,163,184,.15)}
+body.light-mode #myDateDropdown>div:first-child{color:#475569!important}
+body.light-mode #allDateDropdown>div:first-child{color:#475569!important}
+body.light-mode #myDateDropdown>div:nth-of-type(2){color:#475569!important}
+body.light-mode #allDateDropdown>div:nth-of-type(2){color:#475569!important}
+body.light-mode .date-sep{color:#64748b!important}
+body.light-mode #myDateDropdown input[type="date"]{background:#f8fafc;border-color:#e2e8f0;color:#1e293b}
+body.light-mode #allDateDropdown input[type="date"]{background:#f8fafc;border-color:#e2e8f0;color:#1e293b}
+body.light-mode #myMonthGrid button{background:#f8fafc!important;border-color:#e2e8f0!important;color:#475569!important}
+/* 月份按钮 - class 驱动（替代 JS 内联样式，支持主题切换） */
+.month-btn{padding:8px 4px;border-radius:7px;border:1px solid rgba(148,163,184,.12);background:rgba(15,23,42,.45);color:#94a3b8;font-size:13px;cursor:pointer;transition:all .15s;border:none;}
+.month-btn:hover,.month-btn-hover{border-color:rgba(99,102,241,.3);color:#c7d2fe;}
+.month-btn-active{border-color:rgba(99,102,241,.5)!important;background:rgba(99,102,241,.15)!important;color:#a5b4fc!important;font-weight:600;}
+/* 订单月份网格 */
+#ordMonthGrid button{background:rgba(15,23,42,.45) !important;border-color:rgba(148,163,184,.12)!important;color:#94a3b8 !important}
+#ordMonthGrid button:hover{border-color:rgba(99,102,241,.3)!important;color:#c7d2fe !important}
+body.light-mode #ordMonthGrid button{background:#f8fafc!important;border-color:#e2e8f0!important;color:#475569!important}
+/* 订单日期面板 - 紧凑模式 */
+.date-panel-compact .month-btn{padding:5px 2px !important}
+.date-panel-compact #ordMonthGrid{gap:5px !important}
+.date-panel-compact .cal-day{padding:3px 1px !important}
+body.light-mode .month-btn{background:#f8fafc;border-color:#e2e8f0;color:#475569}
+body.light-mode .month-btn:hover,body.light-mode .month-btn-hover{border-color:rgba(99,102,241,.3);color:#4338ca;background:rgba(99,102,241,.06)}
+body.light-mode .month-btn-active{background:rgba(99,102,241,.12)!important;color:#4338ca!important;border-color:rgba(99,102,241,.4)!important}
+body.light-mode #myClearDateBtn{border-color:#cbd5e1!important;color:#64748b!important}
+body.light-mode #adminSumMonthSelect{background:#fff!important;border-color:#cbd5e1!important;color:#334155!important;font-weight:500}
+/* 自定义日期范围按钮 */
+.date-range-btn{flex:1;padding:7px 10px;border-radius:7px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.6);color:#94a3b8;font-size:12px;cursor:pointer;text-align:left;transition:all .15s}
+.date-range-btn:hover{border-color:rgba(99,102,241,.3);color:#c7d2fe}
+body.light-mode .date-range-btn{background:#f8fafc;border-color:#e2e8f0;color:#475569}
+body.light-mode .date-range-btn:hover{border-color:rgba(99,102,241,.3);color:#4338ca}
+/* 自定义日期选择器 - 日历组件样式 */
+.cal-nav-btn{padding:4px 10px;border-radius:6px;border:1px solid rgba(148,163,184,.12);background:rgba(15,23,42,.45);color:#c7d2fe;cursor:pointer;font-size:13px;}
+.cal-nav-btn:hover{border-color:rgba(99,102,241,.3);color:#a5b4fc;}
+body.light-mode .cal-nav-btn{background:rgba(99,102,241,.06);border-color:rgba(148,163,184,.2);color:#4338ca}
+body.light-mode .cal-nav-btn:hover{background:rgba(99,102,241,.12);color:#4338ca}
+.cal-weekday{font-size:11px;color:#64748b;font-weight:500;padding:4px 0}
+body.light-mode .cal-weekday{color:#94a3b8}
+.cal-day{padding:5px 2px;border-radius:6px;cursor:pointer;font-size:12px;color:#cbd5e1;background:none;border:none;transition:all .12s}
+.cal-day:hover{background:rgba(99,102,241,.1);color:#c7d2fe}
+.cal-day-today{background:rgba(99,102,241,.18);color:#a5b4fc!important;font-weight:600}
+.cal-day-sel{background:#6366f1!important;color:#fff!important;font-weight:600}
+body.light-mode .cal-day{color:#475569}
+body.light-mode .cal-day:hover{background:rgba(99,102,241,.08);color:#4338ca}
+body.light-mode .cal-day-today{background:rgba(99,102,241,.12)!important;color:#4338ca!important}
+.cal-action-btn{padding:5px 14px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s}
+.cal-btn-clear{border:1px solid rgba(239,68,68,.25);background:rgba(239,68,68,.08);color:#fca5a5}
+/* 区间高亮 */
+.cal-day-from{background:#6366f1!important;color:#fff!important;font-weight:700;border-radius:6px 0 0 6px!important}
+.cal-day-to{background:#6366f1!important;color:#fff!important;font-weight:700;border-radius:0 6px 6px 0!important}
+.cal-day-from.cal-day-to{border-radius:6px!important}
+.cal-day-range{background:rgba(99,102,241,.18)!important;color:#c7d2fe!important;border-radius:0!important}
+.cal-day-hover-range{background:rgba(99,102,241,.10)!important;border-radius:0!important}
+body.light-mode .cal-day-range{background:rgba(99,102,241,.12)!important;color:#4338ca!important}
+body.light-mode .cal-day-hover-range{background:rgba(99,102,241,.07)!important}
+body.light-mode .cal-day-from,body.light-mode .cal-day-to{background:#6366f1!important;color:#fff!important}
+.cal-btn-clear:hover{background:rgba(239,68,68,.15);color:#f87171}
+.cal-btn-today{border:1px solid rgba(99,102,241,.25);background:rgba(99,102,241,.1);color:#a5b4fc}
+.cal-btn-today:hover{background:rgba(99,102,241,.18);color:#818cf8}
+body.light-mode .cal-btn-clear{border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.06);color:#dc2626}
+body.light-mode .cal-btn-clear:hover{background:rgba(239,68,68,.1)}
+body.light-mode .cal-btn-today{border-color:rgba(99,102,241,.25);background:rgba(99,102,241,.06);color:#4338ca}
+body.light-mode .cal-btn-today:hover{background:rgba(99,102,241,.1)}
+/* 销售汇总表格 - 日间模式加深颜色 */
+body.light-mode .admin-th{background:rgba(99,102,241,.07)!important;color:#4338ca!important}
+/* 进粉数表格行颜色（暗色模式默认） */
+.admin-name{color:#f1f5f9!important}
+.admin-num{color:#a5b4fc!important}
+.admin-pct{color:#94a3b8!important}
+body.light-mode .admin-name{color:#1e293b!important}
+body.light-mode .admin-num{color:#4338ca!important}
+body.light-mode .admin-pct{color:#475569!important}
+/* 成员列表 + 通用表格日间模式 */
+body.light-mode #memberList td{color:#334155!important}
+body.light-mode #memberList td strong{color:#1e293b!important}
+body.light-mode #memberList .owner-me{color:#d97706!important}
+/* 添加成员表单 - 日间模式 */
+body.light-mode .add-member-form{background:#f8fafc!important;border-color:#e2e8f0!important}
+body.light-mode .add-member-title{color:#1e293b!important}
+body.light-mode .add-mem-input{background:#fff!important;border-color:#cbd5e1!important;color:#334155!important}
+body.light-mode #memberList select{background:#fff!important;border-color:#cbd5e1!important;color:#334155!important}
+body.light-mode .role-select{background:rgba(99,102,241,.08)!important;border-color:rgba(99,102,241,.3)!important;color:#4338ca!important}
+/* 下拉选项样式 - 紫色调与按钮一致 */
+.role-select{background:#1e293b!important;border-color:rgba(99,102,241,.5)!important;color:#c7d2fe!important}
+.role-select option{background:#1e293b;color:#e2e8f0;border:none}
+.role-select option:checked{background:rgba(99,102,241,.45);color:#fff;font-weight:600}
+body.light-mode .role-select{background:rgba(99,102,241,.08)!important;border-color:rgba(99,102,241,.3)!important;color:#4338ca!important}
+body.light-mode .role-select option{background:#fff;color:#4338ca}
+body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);color:#4338ca;font-weight:600}
+
+/* 手机号输入提示 */
+.phone-hint{font-size:11px;color:#64748b;margin-top:4px;display:flex;align-items:center;gap:4px}
+.phone-hint .country-preview{font-weight:600;color:#818cf8}
+.phone-hint .clean-preview{color:#94a3b8;font-family:"Cascadia Code","Fira Code",monospace;font-size:12px}
+
+/* 批量导入 */
+#batchInput::placeholder{color:rgba(100,116,139,.5);font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.batch-log-ok{color:#4ade80}
+.batch-log-dup{color:#fbbf24}
+.batch-log-err{color:#ef4444}
+</style>
+</head>
+<body>
+<!-- JS 存活检测：脚本正常执行时会移除此元素 -->
+<div id="jsAliveCheck" style="position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;text-align:center;padding:8px;font-size:13px;z-index:99999;">⚠️ JavaScript 未执行 — 请按 F12 打开控制台查看报错</div>
+<script>try{document.getElementById('jsAliveCheck').remove();console.log('[OK] JS is alive');}catch(e){console.error('JS dead:',e);}</script>
+
+<!-- 登录 -->
+<div class="login-page" id="loginPage">
+  <div class="login-card" style="position:relative;">
+    <h1>🧭 客户信息库</h1>
+    <p class="subtitle">销售团队客户管理 · 防重复跟进 · 支持全球手机号</p>
+    <button id="loginThemeToggle" onclick="toggleTheme()" style="position:absolute;top:14px;right:18px;padding:6px 12px;border-radius:20px;border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.3);color:#94a3b8;font-size:11px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:4px;white-space:nowrap;"><span class="theme-icon" id="loginThemeIcon">🌙</span><span class="theme-text" id="loginThemeText">夜间</span></button>
+
+    <div class="config-area" id="configArea" style="display:none;">
+      <label>Supabase URL</label>
+      <input type="text" id="cfgUrl" placeholder="https://xxxx.supabase.co">
+      <label>Supabase Anon Key</label>
+      <input type="password" id="cfgKey" placeholder="eyJ..." style="margin-bottom:12px;">
+      <button class="btn btn-primary" onclick="saveConfig()" style="width:100%;">保存配置</button>
+      <p class="config-note" style="margin-top:14px;">⚠️ 首次使用需配置 Supabase 数据库连接。按说明文档创建项目和表后填入。</p>
+    </div>
+
+    <div id="configSaved">
+      <label>销售姓名</label>
+      <input type="text" id="loginName" placeholder="输入你的姓名">
+    <label>登录密码</label>
+    <input type="password" id="loginId" placeholder="输入你的登录密码">
+    <button type="button" class="btn-login" id="loginBtn" onclick="if(typeof window.doLogin==='function'){window.doLogin();}">进入系统</button>
+      <button style="margin-top:10px;width:100%;padding:8px;border:1px solid rgba(148,163,184,.15);border-radius:9px;background:transparent;color:#64748b;font-size:12px;cursor:pointer;" onclick="showConfigArea()">修改数据库配置</button>
+    </div>
+  </div>
+</div>
+
+<!-- 主应用 -->
+<div class="app" id="appPage">
+  <aside class="sidebar">
+    <div class="sidebar-logo">🧭 客户信息库</div>
+    <div class="sidebar-desc">防重复 · 全球号码 · 自动识别</div>
+    <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span>工作台</button>
+    <button class="nav-item" data-page="addCustomer" onclick="switchPage('addCustomer',this)"><span class="nav-icon">➕</span>添加客户</button>
+    <button class="nav-item" data-page="batchImport" onclick="switchPage('batchImport',this)"><span class="nav-icon">📥</span>批量导入</button>
+    <button class="nav-item" data-page="searchCustomer" onclick="switchPage('searchCustomer',this)"><span class="nav-icon">🔍</span>查询</button>
+    <button class="nav-item" data-page="myCustomers" onclick="switchPage('myCustomers',this)"><span class="nav-icon">👥</span>我的客户</button>
+    <button class="nav-item" data-page="allCustomers" onclick="switchPage('allCustomers',this)"><span class="nav-icon">📋</span>全部客户</button>
+    <button class="nav-item" data-page="profile" onclick="switchPage('profile',this)"><span class="nav-icon">👤</span>个人设置</button>
+    <button class="nav-item" id="navOrderMgr" data-page="orderManage" onclick="switchPage('orderManage',this)"><span class="nav-icon">🛒</span>订单管理</button>
+    <button class="nav-item" id="navMemberMgr" data-page="memberManage" onclick="switchPage('memberManage',this)" style="display:none;"><span class="nav-icon">👥</span>成员管理</button>
+    <div class="sidebar-user">
+      <div class="user-name" id="sidebarUserName" style="text-align:center;font-size:16px;padding:8px 0;">当前用户：-</div>
+      <button class="btn-logout" onclick="doLogout()">退出登录</button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <button class="theme-toggle" onclick="toggleTheme()" title="切换日间/夜间模式"><span class="theme-icon">🌙</span><span class="theme-text">夜间</span></button>
+
+    <!-- 工作台 -->
+    <section class="page-section active" id="secDashboard">
+      <div class="page-header"><h2>工作台</h2><p>数据总览与快速录入 · 支持任意格式手机号，自动识别国家</p></div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-num" id="statTotal">-</div><div class="stat-label">公司全部客户数</div></div>
+        <div class="stat-card"><div class="stat-num" id="statMine">-</div><div class="stat-label">我的客户</div></div>
+        <div class="stat-card"><div class="stat-num" id="statTodayNew">-</div><div class="stat-label">我今日新增</div></div>
+        <div class="stat-card"><div class="stat-num" id="statTodayDup" style="color:#f59e0b;">-</div><div class="stat-label">我今日重复</div></div>
+        <div class="stat-card"><div class="stat-num" id="statDupPhones" style="color:#fbbf24;">-</div><div class="stat-label">公司总重复号码</div></div>
+      </div>
+
+      <!-- 客户来源国家分布（所有用户可见） -->
+      <div id="countryChartCard" class="card">
+        <div class="card-title">🌍 客户来源国家分布</div>
+        <div style="display:flex;align-items:center;gap:28px;flex-wrap:wrap;">
+          <canvas id="countryPieCanvas" width="220" height="220" style="max-width:220px;max-height:220px;"></canvas>
+          <div id="countryLegend" style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+      </div>
+
+      <!-- 管理员：销售汇总（仅ADMIN可见） -->
+      <div id="adminSummaryCard" style="display:none;" class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+          <div class="card-title" style="margin-bottom:0;">📊 进粉数</div>
+          <select id="adminSumMonthSelect" onchange="loadAdminSummary()" style="padding:7px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.55);color:#e2e8f0;font-size:13px;outline:none;cursor:pointer;">
+            <option value="">选择月份</option>
+          </select>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr><th style="text-align:left;padding:10px 14px;background:rgba(99,102,241,.08);color:#a5b4fc;font-weight:600;font-size:12px;border-bottom:1px solid rgba(148,163,184,.12);border-radius:6px 0 0 0;" class="admin-th">销售人员</th><th style="text-align:right;padding:10px 14px;background:rgba(99,102,241,.08);color:#a5b4fc;font-weight:600;font-size:12px;border-bottom:1px solid rgba(148,163,184,.12);" class="admin-th">进粉数</th><th style="text-align:right;padding:10px 14px;background:rgba(99,102,241,.08);color:#a5b4fc;font-weight:600;font-size:12px;border-bottom:1px solid rgba(148,163,184,.12);border-radius:0 6px 0 0;" class="admin-th">占比</th></tr></thead>
+          <tbody id="adminSummaryBody"></tbody>
+        </table>
+        <div id="adminSummaryEmpty" style="display:none;text-align:center;padding:20px;color:#64748b;font-size:13px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">录入客户手机号（自动查重 & 国家识别）</div>
+        <div class="form-group">
+          <label>手机号 *（支持任意格式，如 +44 7700 900123、0033-6-12-34-56-78）</label>
+          <input type="tel" id="quickPhone" placeholder="+44 7700 900123 或 00396123456789 或 06 12 34 56 78" oninput="showPhoneHint(this.value)" onkeyup="if(event.key==='Enter')quickAdd()">
+          <div class="phone-hint" id="quickPhoneHint"></div>
+        </div>
+        <button class="btn btn-primary" onclick="quickAdd()" style="width:200px;">立即录入</button>
+      </div>
+    </section>
+
+    <!-- 添加客户 -->
+    <section class="page-section" id="secAddCustomer">
+      <div class="page-header"><h2>添加客户</h2><p>输入手机号，系统自动清洗格式、识别国家并查重</p></div>
+      <div class="card">
+        <div class="form-group">
+          <label>手机号 *（支持任意格式）</label>
+          <input type="tel" id="addPhone" placeholder="+44 7700 900123 或 00396123456789 或 06 12 34 56 78" oninput="showPhoneHint(this.value,'addPhoneHint')" onkeyup="if(event.key==='Enter')addCustomer()">
+          <div class="phone-hint" id="addPhoneHint"></div>
+        </div>
+        <button class="btn btn-primary" onclick="addCustomer()">提交录入</button>
+      </div>
+    </section>
+
+    <!-- 批量导入 -->
+    <section class="page-section" id="secBatchImport">
+      <div class="page-header"><h2>批量导入</h2><p>粘贴多个手机号，每行一个或用逗号/分号/空格分隔，自动逐条查重并录入</p></div>
+
+      <!-- 进度面板 -->
+      <div class="card" id="batchProgressCard" style="display:none;">
+        <div class="card-title">导入进度</div>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+            <span>进度：<strong id="batchProgressText">0 / 0</strong></span>
+            <span style="color:#818cf8;" id="batchPercentText">0%</span>
+          </div>
+          <div style="background:rgba(99,102,241,.1);border-radius:8px;height:10px;overflow:hidden;">
+            <div id="batchProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:8px;transition:width .3s;"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:12px;text-align:center;">
+          <div style="background:rgba(34,197,94,.08);border-radius:8px;padding:10px;">
+            <div style="font-size:20px;font-weight:800;color:#4ade80;" id="batchSuccessCount">0</div>
+            <div style="color:#64748b;">✅ 成功</div>
+          </div>
+          <div style="background:rgba(245,158,11,.08);border-radius:8px;padding:10px;">
+            <div style="font-size:20px;font-weight:800;color:#fbbf24;" id="batchDupCount">0</div>
+            <div style="color:#64748b;">⚠️ 重复(跳过)</div>
+          </div>
+          <div style="background:rgba(239,68,68,.08);border-radius:8px;padding:10px;">
+            <div style="font-size:20px;font-weight:800;color:#ef4444;" id="batchFailCount">0</div>
+            <div style="color:#64748b;">❌ 失败</div>
+          </div>
+        </div>
+        <div id="batchLogArea" style="max-height:200px;overflow-y:auto;margin-top:14px;font-size:11px;line-height:1.8;color:#94a3b8;"></div>
+        <div style="margin-top:14px;display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="startBatchImport()" id="btnStartBatch" disabled>开始导入</button>
+          <button class="btn btn-danger" onclick="resetBatchImport()">重置</button>
+        </div>
+      </div>
+
+      <!-- 输入区域 -->
+      <div class="card" id="batchInputCard">
+        <div class="card-title">粘贴手机号列表</div>
+        <div class="form-group">
+          <label>支持以下任意格式（可混合使用）</label>
+          <textarea id="batchInput" rows="10" placeholder="示例 — 每行一个：&#10;+44 7700 900123&#10;0033 612 345 678&#10;+39 345 1234567&#10;&#10;或用逗号/分号分隔：&#10;+44 7700 900123, +33 612 345 678&#10;&#10;或从 Excel 复制一列直接粘贴" style="padding:14px 16px;border-radius:10px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.55);color:#e2e8f0;font-size:14px;outline:none;resize:vertical;width:100%;font-family:inherit;line-height:1.6;" oninput="onBatchInputChange()"></textarea>
+          <div style="display:flex;gap:16px;margin-top:8px;font-size:12px;color:#64748b;">
+            <span>📊 检测到 <strong id="batchDetectedCount" style="color:#818cf8;">0</strong> 个号码</span>
+            <span id="batchPreviewHint"></span>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-primary" onclick="prepareBatchImport()" id="btnPrepareBatch" style="padding:12px 32px;font-size:15px;">解析并预览</button>
+          <label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" id="batchSkipDups" checked style="accent-color:#6366f1;"> 遇到重复自动跳过（不弹窗）
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- 查询 -->
+    <section class="page-section" id="secSearchCustomer">
+      <div class="page-header"><h2>查询客户</h2><p>搜索手机号或国家/地区，查看归属销售</p></div>
+      <div class="card">
+        <div class="search-bar">
+          <input type="text" id="searchInput" placeholder="输入手机号、国家名或销售姓名搜索..." onkeyup="if(event.key==='Enter')searchCustomer()">
+          <button class="btn btn-primary" onclick="searchCustomer()">搜索</button>
+        </div>
+      </div>
+      <div id="searchResults"></div>
+    </section>
+
+    <!-- 我的客户 -->
+    <section class="page-section" id="secMyCustomers">
+      <div class="page-header"><h2>我的客户</h2><p>你录入的所有客户</p></div>
+      <div class="card" style="padding:18px 26px;">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;position:relative;">
+          <input type="text" id="mySearchInput" placeholder="搜索手机号或国家..." onkeyup="if(event.key==='Enter')loadMyCustomers()" style="flex:1;min-width:160px;padding:9px 14px;border-radius:9px;border:1px solid rgba(148,163,184,.18);background:var(--input-bg, rgba(15,23,42,.55));color:var(--input-color, #e2e8f0);font-size:13px;outline:none;">
+          <button class="btn btn-primary btn-sm" onclick="loadMyCustomers()">筛选</button>
+          <span style="width:1px;height:22px;background:rgba(148,163,184,.15);display:inline-block;"></span>
+          <button id="myDateBtn" onclick="toggleMyDatePicker()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(99,102,241,.6);background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.18));color:#818cf8;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all .2s;">📅 <span id="myDateBtnText">选择日期</span> ▾</button>
+          <button onclick="clearMyDateFilter()" id="myClearDateBtn" style="padding:5px 14px;display:none;background:transparent;border:1px solid rgba(148,163,184,.2);border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer;">清除</button>
+          <button class="btn btn-sm" onclick="loadMyCustomers()" title="刷新数据" style="padding:7px 12px;border:1px solid rgba(148,163,184,.25);background:transparent;color:#94a3b8;font-size:15px;cursor:pointer;transition:all .15s;border-radius:9px;" onmouseover="this.style.borderColor='#818cf8';this.style.color='#818cf8'" onmouseout="this.style.borderColor='rgba(148,163,184,.25)';this.style.color='#94a3b8'">⟳</button>
+          <span style="width:1px;height:22px;background:rgba(148,163,184,.15);display:inline-block;"></span>
+          <button id="mySortBtn" onclick="toggleMySort()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(99,102,241,.6);background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.18));color:#818cf8;font-size:13px;font-weight:600;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s;white-space:nowrap;" onmouseover="this.style.borderColor='#818cf8'" onmouseout="this.style.borderColor='rgba(99,102,241,.25)'"><span id="mySortText">时间 ↓ 降序</span> <span id="mySortArrow">▼</span></button>
+          <input type="hidden" id="mySortVal" value="desc">
+          <div id="myDateDropdown" style="display:none;position:fixed;z-index:99999;border-radius:12px;padding:14px 18px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:260px;">
+            <div style="font-size:13px;color:#94a3b8;margin-bottom:8px;font-weight:500;">快捷选择月份</div>
+            <div id="myMonthGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
+            <span style="font-size:13px;color:#94a3b8;margin-top:8px;margin-bottom:6px;font-weight:500;">自定义范围</span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <button id="myDateFromBtn" onclick="pickDateFrom()" class="date-range-btn">开始日期</button>
+              <input type="date" id="myDateFrom" onchange="onMyCustomRange()" style="position:absolute;opacity:0;width:1px;height:1px;padding:0;border:none;">
+              <span class="date-sep" style="color:#64748b;font-size:12px;">至</span>
+              <button id="myDateToBtn" onclick="pickDateTo()" class="date-range-btn">结束日期</button>
+              <input type="date" id="myDateTo" onchange="onMyCustomRange()" style="position:absolute;opacity:0;width:1px;height:1px;padding:0;border:none;">
+          </div>
+          <div id="myCalendarContainer" style="margin-top:10px;"></div>
+        </div>
+      </div>
+      </div>
+      <div id="myCustomersList"></div>
+    </section>
+
+    <!-- 全部客户 -->
+    <section class="page-section" id="secAllCustomers">
+      <div class="page-header"><h2>全部客户</h2><p>所有已录入的客户</p></div>
+      <div class="card">
+        <div class="search-bar" style="margin-bottom:0;">
+          <input type="text" id="allSearchInput" placeholder="搜索手机号、国家或销售姓名..." onkeyup="if(event.key==='Enter')loadAllCustomers()">
+          <button class="btn btn-primary btn-sm" onclick="loadAllCustomers()">筛选</button>
+          <span style="width:1px;height:22px;background:rgba(148,163,184,.15);display:inline-block;"></span>
+          <button id="allDateBtn" onclick="toggleAllDatePicker()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(99,102,241,.6);background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.18));color:#818cf8;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all .2s;">📅 <span id="allDateBtnText">选择日期</span> ▾</button>
+          <button onclick="clearAllDateFilter()" id="allClearDateBtn" style="padding:5px 14px;display:none;background:transparent;border:1px solid rgba(148,163,184,.2);border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer;">清除</button>
+          <button class="btn btn-sm" onclick="loadAllCustomers()" title="刷新数据" style="padding:7px 12px;border:1px solid rgba(148,163,184,.25);background:transparent;color:#94a3b8;font-size:15px;cursor:pointer;transition:all .15s;border-radius:9px;" onmouseover="this.style.borderColor='#818cf8';this.style.color='#818cf8'" onmouseout="this.style.borderColor='rgba(148,163,184,.25)';this.style.color='#94a3b8'">⟳</button>
+          <span style="width:1px;height:22px;background:rgba(148,163,184,.15);display:inline-block;"></span>
+          <button id="allSortBtn" onclick="toggleAllSort()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(99,102,241,.6);background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.18));color:#818cf8;font-size:13px;font-weight:600;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s;white-space:nowrap;" onmouseover="this.style.borderColor='#818cf8'" onmouseout="this.style.borderColor='rgba(99,102,241,.25)'"><span id="allSortText">时间 ↓ 降序</span> <span id="allSortArrow">▼</span></button>
+          <input type="hidden" id="allSortVal" value="desc">
+        </div>
+      </div>
+      <!-- 全部客户 - 日期下拉面板 -->
+      <div id="allDateDropdown" style="display:none;position:fixed;z-index:99999;border-radius:12px;padding:14px 18px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:260px;">
+        <div style="font-size:13px;color:#94a3b8;margin-bottom:8px;font-weight:500;">快捷选择月份</div>
+        <div id="allMonthGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
+        <span style="font-size:13px;color:#94a3b8;margin-top:8px;margin-bottom:6px;font-weight:500;">自定义范围</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button id="allDateFromBtn" onclick="pickDateFromA()" class="date-range-btn">开始日期</button>
+          <input type="date" id="allDateFrom" onchange="onAllCustomRange()" style="position:absolute;opacity:0;width:1px;height:1px;padding:0;border:none;">
+          <span class="date-sep" style="color:#64748b;font-size:12px;">至</span>
+          <button id="allDateToBtn" onclick="pickDateToA()" class="date-range-btn">结束日期</button>
+          <input type="date" id="allDateTo" onchange="onAllCustomRange()" style="position:absolute;opacity:0;width:1px;height:1px;padding:0;border:none;">
+        </div>
+        <div id="allCalendarContainer" style="margin-top:10px;"></div>
+      </div>
+      <div id="allCustomersList"></div>
+    </section>
+
+    <!-- 个人设置 -->
+    <section class="page-section" id="secProfile">
+      <div class="page-header"><h2>个人设置</h2><p>修改显示名称和登录密码</p></div>
+      <div class="card">
+        <div class="card-title">基本信息</div>
+        <div class="form-group">
+          <label>当前显示名称</label>
+          <input type="text" id="profileCurrentName" disabled style="opacity:.6;background:rgba(15,23,42,.35);">
+        </div>
+        <div class="form-group">
+          <label>新名称 *（用于在系统中标识你，其他销售也能看到）</label>
+          <input type="text" id="profileNewName" placeholder="输入新的显示名称">
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:18px;">
+          <button class="btn btn-primary" onclick="saveProfileName()">保存名称修改</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">修改登录密码</div>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:14px;">修改后需要用新密码重新登录。</p>
+        <div class="form-group">
+          <label>当前密码</label>
+          <input type="password" id="profileOldPwd" placeholder="输入当前密码">
+        </div>
+        <div class="form-group">
+          <label>新密码 *</label>
+          <input type="password" id="profileNewPwd" placeholder="输入新密码">
+        </div>
+        <div class="form-group">
+          <label>确认新密码 *</label>
+          <input type="password" id="profileConfirmPwd" placeholder="再次输入新密码">
+        </div>
+        <button class="btn btn-primary" onclick="changePassword()">确认修改密码</button>
+      </div>
+      <div class="card">
+        <div class="card-title">同步说明</div>
+        <p style="font-size:13px;color:#94a3b8;line-height:1.7;">修改名称后，系统会自动将你在数据库中<strong style="color:#e2e8f0;">所有已录入客户</strong>的 owner_name 同步更新为新名称。这个过程可能需要几秒钟，取决于你的客户数量。</p>
+      </div>
+    </section>
+
+    <!-- 订单管理 -->
+    <section class="page-section" id="secOrderManage">
+      <div class="page-header"><h2>订单管理</h2><p>记录和管理客户订单信息</p></div>
+
+      <div class="card">
+        <!-- 创建/编辑表单 -->
+        <div style="margin-bottom:20px;padding:18px;background:rgba(15,23,42,.5);border-radius:12px;border:1px solid rgba(148,163,184,.12);" class="order-form-card">
+          <div style="font-size:15px;font-weight:600;color:#e2e8f0;margin-bottom:14px;" class="order-form-title">新建订单</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <input id="ordDate" type="date" onclick="this.showPicker()" placeholder="日期" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
+            <input id="ordCustomerName" placeholder="客户姓名 *" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
+            <input id="ordPhone" placeholder="联系方式 *" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
+            <input id="ordAddress" placeholder="地址" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
+            <input id="ordProduct" placeholder="产品名 *" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
+            <input id="ordAmount" type="number" step="0.01" placeholder="总金额 (元) *" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
+          </div>
+          <textarea id="ordRemark" rows="2" placeholder="备注（选填）" style="width:100%;margin-top:10px;padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;resize:none;outline:none;"></textarea>
+          <input type="hidden" id="ordEditId">
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button class="btn btn-primary btn-sm" onclick="saveOrder()">保存订单</button>
+            <button class="btn btn-sm" style="background:transparent;color:#94a3b8;border:1px solid rgba(148,163,184,.2);" onclick="resetOrderForm()">重置</button>
+          </div>
+        </div>
+
+        <!-- 筛选栏 -->
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+          <input id="ordSearchInput" type="text" placeholder="搜索客户姓名/产品名/销售姓名..." style="flex:1;min-width:200px;padding:8px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:var(--input-bg, rgba(15,23,42,.4));color:var(--input-color,#cbd5e1);font-size:13px;outline:none;" onkeyup="if(event.key==='Enter')loadOrders()">
+          <button class="btn btn-primary btn-sm" onclick="loadOrders()">查询</button>
+          <span style="width:1px;height:22px;background:rgba(148,163,184,.15);display:inline-block;"></span>
+          <button id="ordDateBtn" onclick="toggleOrdDatePicker()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(99,102,241,.6);background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.18));color:#818cf8;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all .2s;">📅 <span id="ordDateBtnText">选择日期</span> ▾</button>
+          <button onclick="clearOrdDateFilter()" id="ordClearDateBtn" style="padding:5px 14px;display:none;background:transparent;border:1px solid rgba(148,163,184,.2);border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer;">清除</button>
+          <span style="width:1px;height:22px;background:rgba(148,163,184,.15);display:inline-block;"></span>
+          <button id="ordSortBtn" onclick="toggleOrdSort()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(99,102,241,.6);background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.18));color:#818cf8;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s;white-space:nowrap;" onmouseover="this.style.borderColor='#818cf8'" onmouseout="this.style.borderColor='rgba(99,102,241,.25)'"><span id="ordSortText">时间 ↓ 降序</span> <span id="ordSortArrow">▼</span></button>
+          <input type="hidden" id="ordSortVal" value="desc">
+        </div>
+
+        
+
+        <!-- 统计条 -->
+        <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+          <div class="stat-card" style="flex:1;min-width:120px;padding:12px;text-align:center;"><div class="ord-stat-label" style="font-size:11px;color:#94a3b8;margin-bottom:4px;">订单总数</div><div class="ord-stat-num" style="font-size:22px;font-weight:700;color:#818cf8;" id="ordTotalCount">0</div></div>
+          <div class="stat-card" style="flex:1;min-width:120px;padding:12px;text-align:center;"><div class="ord-stat-label" style="font-size:11px;color:#94a3b8;margin-bottom:4px;">总金额</div><div class="ord-stat-amount" style="font-size:22px;font-weight:700;color:#34d399;" id="ordTotalAmount">¥0</div></div>
+        </div>
+
+        <!-- 订单列表 -->
+        <div id="orderList" style="overflow-x:auto;"></div>
+      </div>
+    </section>
+
+    <!-- 成员管理（仅ADMIN） -->
+    <section class="page-section" id="secMemberManage">
+      <div class="page-header"><h2>成员管理</h2><p>管理系统成员，可添加、删除员工及重置密码</p></div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div class="card-title" style="margin-bottom:0;">成员列表</div>
+          <button class="btn btn-primary btn-sm" onclick="showAddMemberForm()">＋ 添加成员</button>
+        </div>
+        <!-- 添加成员表单（默认隐藏） -->
+        <div id="addMemberForm" style="display:none;margin-bottom:18px;padding:16px;background:rgba(15,23,42,.5);border-radius:10px;border:1px solid rgba(148,163,184,.12);" class="add-member-form">
+          <div style="font-size:14px;font-weight:600;color:#e2e8f0;margin-bottom:12px;" class="add-member-title">添加新成员</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <input id="addMemName" placeholder="姓名" class="add-mem-input" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
+            <input id="addMemPwd" type="password" placeholder="初始登录密码" class="add-mem-input" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
+            <select id="addMemRole" class="add-mem-input" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
+              <option value="member">普通成员</option>
+              <option value="manager" id="addMemRoleManagerOpt">管理员</option>
+              <option value="admin" id="addMemRoleAdminOpt" style="display:none;">超级管理员</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="btn btn-primary btn-sm" onclick="doAddMember()">确认添加</button>
+            <button class="btn btn-sm" style="background:transparent;color:#94a3b8;border:1px solid rgba(148,163,184,.2);" onclick="hideAddMemberForm()">取消</button>
+          </div>
+        </div>
+        <div id="memberList"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- 查重弹窗 -->
+<div class="modal-overlay" id="dupModal">
+  <div class="modal-box">
+    <h3>⚠️ 该号码已被录入！</h3>
+    <div id="dupList"></div>
+    <p style="font-size:12px;color:#94a3b8;" id="dupHint"></p>
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="closeDupModal(false)">取消</button>
+      <button class="btn btn-primary" onclick="closeDupModal(true)">仍要录入</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ============================================================
+// 全球手机号处理核心
+// ============================================================
+
+// 欧洲完整国家区号表（按前缀从长到短排序）
+const COUNTRY_CODES = [
+  // === 3位区号 ===
+  { code: '+383', country: '科索沃 🇽🇰' },
+  { code: '+385', country: '克罗地亚 🇭🇷' },
+  { code: '+386', country: '斯洛文尼亚 🇸🇮' },
+  { code: '+387', country: '波黑 🇧🇦' },
+  { code: '+389', country: '北马其顿 🇲🇰' },
+  { code: '+380', country: '乌克兰 🇺🇦' },
+  { code: '+379', country: '梵蒂冈 🇻🇦' },
+  { code: '+378', country: '圣马力诺 🇸🇲' },
+  { code: '+377', country: '摩纳哥 🇲🇨' },
+  { code: '+376', country: '安道尔 🇦🇩' },
+  { code: '+375', country: '白俄罗斯 🇧🇾' },
+  { code: '+374', country: '亚美尼亚 🇦🇲' },
+  { code: '+373', country: '摩尔多瓦 🇲🇩' },
+  { code: '+372', country: '爱沙尼亚 🇪🇪' },
+  { code: '+371', country: '拉脱维亚 🇱🇻' },
+  { code: '+370', country: '立陶宛 🇱🇹' },
+  { code: '+359', country: '保加利亚 🇧🇬' },
+  { code: '+358', country: '芬兰 🇫🇮' },
+  { code: '+357', country: '塞浦路斯 🇨🇾' },
+  { code: '+356', country: '马耳他 🇲🇹' },
+  { code: '+355', country: '阿尔巴尼亚 🇦🇱' },
+  { code: '+354', country: '冰岛 🇮🇸' },
+  { code: '+353', country: '爱尔兰 🇮🇪' },
+  { code: '+352', country: '卢森堡 🇱🇺' },
+  { code: '+351', country: '葡萄牙 🇵🇹' },
+  { code: '+350', country: '直布罗陀 🇬🇮' },
+  { code: '+423', country: '列支敦士登 🇱🇮' },
+  // === 2位区号 ===
+  { code: '+49',  country: '德国 🇩🇪' },
+  { code: '+48',  country: '波兰 🇵🇱' },
+  { code: '+47',  country: '挪威 🇳🇴' },
+  { code: '+46',  country: '瑞典 🇸🇪' },
+  { code: '+45',  country: '丹麦 🇩🇰' },
+  { code: '+44',  country: '英国 🇬🇧' },
+  { code: '+43',  country: '奥地利 🇦🇹' },
+  { code: '+42',  country: '捷克 🇨🇿' },     // 历史代码(已拆分)，保留兼容
+  { code: '+41',  country: '瑞士 🇨🇭' },
+  { code: '+40',  country: '罗马尼亚 🇷🇴' },
+  { code: '+39',  country: '意大利 🇮🇹' },
+  { code: '+38',  country: '南斯拉夫/黑山 🇲🇪' },
+  { code: '+37',  country: '黑山 🇲🇪' },
+  { code: '+36',  country: '匈牙利 🇭🇺' },
+  { code: '+34',  country: '西班牙 🇪🇸' },
+  { code: '+33',  country: '法国 🇫🇷' },
+  { code: '+32',  country: '比利时 🇧🇪' },
+  { code: '+31',  country: '荷兰 🇳🇱' },
+  { code: '+30',  country: '希腊 🇬🇷' },
+  { code: '+29',  country: '法罗群岛 🇫🇴' },
+  // === 其他常用国际区号 ===
+  { code: '+27',  country: '南非 🇿🇦' },
+  { code: '+20',  country: '埃及 🇪🇬' },
+  { code: '+7',   country: '俄罗斯/哈萨克斯坦 🇷🇺' },
+  { code: '+998', country: '乌兹别克斯坦 🇺🇿' },
+  { code: '+997', country: '塔吉克斯坦 🇹🇯' },
+  { code: '+996', country: '吉尔吉斯斯坦 🇰🇬' },
+  { code: '+995', country: '格鲁吉亚 🇬🇪' },
+  { code: '+994', country: '阿塞拜疆 🇦🇿' },
+  { code: '+993', country: '土库曼斯坦 🇹🇲' },
+  { code: '+992', country: '塔吉克斯坦 🇹🇯' },
+  { code: '+98',  country: '伊朗 🇮🇷' },
+  { code: '+971', country: '阿联酋 🇦🇪' },
+  { code: '+970', country: '巴勒斯坦 🇵🇸' },
+  { code: '+972', country: '以色列 🇮🇱' },
+  { code: '+967', country: '也门 🇾🇪' },
+  { code: '+968', country: '阿曼 🇴🇲' },
+  { code: '+967', country: '也门 🇾🇪' },
+  { code: '+966', country: '沙特阿拉伯 🇸🇦' },
+  { code: '+965', country: '科威特 🇰🇼' },
+  { code: '+964', country: '伊拉克 🇮🇶' },
+  { code: '+963', country: '叙利亚 🇸🇾' },
+  { code: '+962', country: '约旦 🇯🇴' },
+  { code: '+961', country: '黎巴嫩 🇱🇧' },
+  { code: '+960', country: '马尔代夫 🇲🇻' },
+  { code: '+95',  country: '缅甸 🇲🇲' },
+  { code: '+94',  country: '斯里兰卡 🇱🇰' },
+  { code: '+93',  country: '阿富汗 🇦🇫' },
+  { code: '+92',  country: '巴基斯坦 🇵🇰' },
+  { code: '+91',  country: '印度 🇮🇳' },
+  { code: '+90',  country: '土耳其 🇹🇷' },
+  { code: '+86',  country: '中国 🇨🇳' },
+  { code: '+84',  country: '越南 🇻🇳' },
+  { code: '+82',  country: '韩国 🇰🇷' },
+  { code: '+81',  country: '日本 🇯🇵' },
+  { code: '+66',  country: '泰国 🇹🇭' },
+  { code: '+65',  country: '新加坡 🇸🇬' },
+  { code: '+64',  country: '新西兰 🇳🇿' },
+  { code: '+63',  country: '菲律宾 🇵🇭' },
+  { code: '+62',  country: '印度尼西亚 🇮🇩' },
+  { code: '+61',  country: '澳大利亚 🇦🇺' },
+  { code: '+60',  country: '马来西亚 🇲🇾' },
+  { code: '+55',  country: '巴西 🇧🇷' },
+  { code: '+54',  country: '阿根廷 🇦🇷' },
+  { code: '+53',  country: '古巴 🇨🇺' },
+  { code: '+52',  country: '墨西哥 🇲🇽' },
+  { code: '+51',  country: '秘鲁 🇵🇪' },
+  { code: '+50',  country: '巴拿马 🇵🇦' },
+  // === 港台澳 ===
+  { code: '+886', country: '台湾 🇹🇼' },
+  { code: '+853', country: '澳门 🇲🇴' },
+  { code: '+852', country: '香港 🇭🇰' },
+  // === 非洲 ===
+  { code: '+234', country: '尼日利亚 🇳🇬' },
+  { code: '+255', country: '坦桑尼亚 🇹🇿' },
+  { code: '+256', country: '乌干达 🇺🇬' },
+  { code: '+254', country: '肯尼亚 🇰🇪' },
+  { code: '+253', country: '吉布提 🇩🇯' },
+  { code: '+252', country: '索马里 🇸🇴' },
+  { code: '+251', country: '埃塞俄比亚 🇪🇹' },
+  { code: '+250', country: '卢旺达 🇷🇼' },
+  { code: '+249', country: '苏丹 🇸🇩' },
+  { code: '+248', country: '塞舌尔 🇸🇨' },
+  { code: '+246', country: '英属印度洋领地 🏝️' },
+  { code: '+245', country: '几内亚比绍 🇬🇼' },
+  { code: '+244', country: '安哥拉 🇦🇴' },
+  { code: '+243', country: '刚果金 🇨🇩' },
+  { code: '+242', country: '刚果布 🇨🇬' },
+  { code: '+241', country: '加蓬 🇬🇦' },
+  { code: '+240', country: '赤道几内亚 🇬🇶' },
+  { code: '+239', country: '圣多美和普林西比 🇸🇹' },
+  { code: '+238', country: '佛得角 🇨🇻' },
+  { code: '+237', country: '喀麦隆 🇨🇲' },
+  { code: '+236', country: '中非 🇨🇫' },
+  { code: '+235', country: '乍德 🇹🇩' },
+  { code: '+233', country: '加纳 🇬🇭' },
+  { code: '+232', country: '塞拉利昂 🇸🇱' },
+  { code: '+231', country: '利比里亚 🇱🇷' },
+  { code: '+230', country: '毛里求斯 🇲🇺' },
+  { code: '+229', country: '贝宁 🇧🇯' },
+  { code: '+228', country: '多哥 🇹🇬' },
+  { code: '+227', country: '阿尔及利亚 🇩🇿' },
+  { code: '+226', country: '布基纳法索 🇧🇫' },
+  { code: '+225', country: '科特迪瓦 🇨🇮' },
+  { code: '+224', country: '几内亚 🇬🇳' },
+  { code: '+223', country: '马里 🇲🇱' },
+  { code: '+222', country: '毛里塔尼亚 🇲🇷' },
+  { code: '+221', country: '塞内加尔 🇸🇳' },
+  { code: '+220', country: '冈比亚 🇬🇲' },
+  { code: '+218', country: '利比亚 🇱🇾' },
+  { code: '+217', country: '阿尔及利亚 🇩🇿' },
+  { code: '+216', country: '突尼斯 🇹🇳' },
+  { code: '+215', country: '摩洛哥 🇲🇦' },
+  { code: '+213', country: '阿尔及利亚 🇩🇿' },
+  { code: '+212', country: '摩洛哥 🇲🇦' },
+];
+
+/**
+ * 清洗手机号：去除所有空格、+、-、括号等非数字字符，统一为纯数字
+ */
+function cleanPhone(raw) {
+  if (!raw) return '';
+  // 去掉所有非数字字符（保留 + 以便后续判断）
+  let cleaned = raw.replace(/[^0-9+]/g, '').trim();
+  // 去掉开头的 +
+  if (cleaned.startsWith('+')) cleaned = cleaned.slice(1);
+  // 处理 00 开头的国际前缀（如 0044 → 44）
+  if (cleaned.startsWith('00')) cleaned = cleaned.slice(2);
+  // 处理 0 开头的国内前缀（有些欧洲国家习惯写 06 而不是 +336）
+  // 这里保留原样，因为不知道具体国家规则
+  return cleaned;
+}
+
+/**
+ * 识别国家：根据纯数字前缀匹配国际区号
+ * 关键：3位区号（如+386）必须在2位区号（如+38）之前匹配，否则会被截断
+ */
+function detectCountry(cleaned) {
+  if (!cleaned || cleaned.length < 3) return null;
+  // 按代码长度降序排列，确保长的先匹配（+386 在 +38 前面）
+  const sorted = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
+  for (const entry of sorted) {
+    const prefix = entry.code.replace('+', '');
+    if (cleaned.startsWith(prefix)) {
+      return entry;
+    }
+  }
+  return null;
+}
+
+/**
+ * 格式化显示用的手机号：加上国家前缀和可读格式
+ */
+function formatPhoneDisplay(phone) {
+  if (!phone) return '-';
+  // 如果已经是纯数字，尝试识别国家并格式化
+  const country = detectCountry(phone);
+  let formatted = phone;
+  if (country) {
+    // 把前面的国际号部分用 + 格式分开
+    const prefix = country.code.replace('+', '');
+    if (phone.startsWith(prefix)) {
+      const localPart = phone.slice(prefix.length);
+      // 简单分组：每 2-3 位一组
+      formatted = '+' + prefix + ' ' + groupDigits(localPart);
+    }
+  } else {
+    formatted = groupDigits(phone);
+  }
+  return formatted;
+}
+
+/** 数字分组（每3位一组） */
+function groupDigits(s) {
+  if (!s) return '';
+  if (s.length <= 4) return s;
+  // 从右往左每3位一组
+  const parts = [];
+  let i = s.length;
+  while (i > 0) {
+    parts.unshift(s.substring(Math.max(0, i - 3), i));
+    i -= 3;
+  }
+  return parts.join(' ');
+}
+
+/**
+ * 显示实时输入提示（国家识别 + 清洗预览）
+ */
+function showPhoneHint(inputIdOrValue, hintElId) {
+  let raw;
+  if (typeof inputIdOrValue === 'string') {
+    raw = inputIdOrValue;
+  } else {
+    raw = inputIdOrValue.value || '';
+  }
+  const elId = hintElId || 'quickPhoneHint';
+  const el = document.getElementById(elId);
+  if (!el) return;
+
+  if (!raw.trim()) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const cleaned = cleanPhone(raw);
+  const country = detectCountry(cleaned);
+
+  if (country) {
+    el.innerHTML = `🌍 识别：<span class="country-preview">${escHtml(country.country)}</span> &nbsp;|&nbsp; 存储为：<span class="clean-preview">${cleaned}</span>`;
+  } else if (cleaned && cleaned.length >= 3) {
+    el.innerHTML = `⚠️ 未识别到国家 &nbsp;|&nbsp; 存储为：<span class="clean-preview">${cleaned}</span>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+
+// ============================================================
+// 全局变量
+// ============================================================
+let currentUser = window.currentUser || JSON.parse(localStorage.getItem("crm_user") || "null");
+let supabaseClient = window.supabaseClient || null;
+let pendingPhone = null;
+
+const CONFIG_KEY = 'crm_config';
+const USER_KEY = 'crm_user';
+const THEME_KEY = 'crm_theme'; // light / dark
+
+// ============================================================
+// 主题切换
+// ============================================================
+function toggleTheme(){
+  const body = document.body;
+  const isLight = body.classList.contains('light-mode');
+
+  // Update ALL theme toggle buttons (both login page and app page)
+  const allToggles = document.querySelectorAll('#loginThemeToggle, .theme-toggle');
+  
+  if(isLight){
+    body.classList.remove('light-mode');
+    allToggles.forEach(btn => {
+      const icon=btn.querySelector('.theme-icon'), txt=btn.querySelector('.theme-text');
+      if(icon) icon.textContent='🌙';
+      if(txt) txt.textContent='夜间';
+    });
+    localStorage.setItem(THEME_KEY, 'dark');
+  } else {
+    body.classList.add('light-mode');
+    allToggles.forEach(btn => {
+      const icon=btn.querySelector('.theme-icon'), txt=btn.querySelector('.theme-text');
+      if(icon) icon.textContent='☀️';
+      if(txt) txt.textContent='日间';
+    });
+    localStorage.setItem(THEME_KEY, 'light');
+  }
+
+  // 切换主题后立即重绘饼图（Canvas 颜色依赖当前模式）
+  redrawPieChart();
+}
+
+function redrawPieChart(){
+  // 复用已缓存的国家统计数据重新渲染 Canvas
+  if(!window.__lastPieData) return;
+  renderCountryPieChart(window.__lastPieData.data);
+}
+
+function initTheme(){
+  const saved = localStorage.getItem(THEME_KEY);
+  const isLight = (saved === 'light');
+  
+  if(isLight){
+    document.body.classList.add('light-mode');
+  }
+  
+  // Update BOTH login and app theme buttons
+  document.querySelectorAll('#loginThemeToggle, .theme-toggle').forEach(btn => {
+    const icon=btn.querySelector('.theme-icon'), txt=btn.querySelector('.theme-text');
+    if(icon && txt){
+      icon.textContent=isLight?'☀️':'🌙';
+      txt.textContent=isLight?'日间':'夜间';
+    }
+  });
+}
+
+// ========== Supabase 配置（已预填） ==========
+const DEFAULT_URL = 'https://vekkbgscqpppcluhfwrv.supabase.co';
+const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZla2tiZ3NjcXBwcGNsdWhmd3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDQ5ODIsImV4cCI6MjA5Mjc4MDk4Mn0.sLaNTrb7oF5yf2bgbR9LITtrYCaLqSm94a-bzaHKAbk';
+
+// ============================================================
+// 初始化
+// ============================================================
+(function init() {
+  document.getElementById('cfgUrl').value = DEFAULT_URL;
+  document.getElementById('cfgKey').value = DEFAULT_KEY;
+
+  // 安全初始化 Supabase（CDN 可能加载失败）
+  try {
+    if(window.supabase){
+      initSupabase(DEFAULT_URL, DEFAULT_KEY);
+    } else {
+      console.warn('Supabase SDK 未加载，检查网络连接');
+      // 延迟再试一次（备用 CDN 可能还在加载）
+      setTimeout(function(){
+        if(window.supabase){
+          console.log('延迟检测：Supabase SDK 已加载');
+          initSupabase(DEFAULT_URL, DEFAULT_KEY);
+        } else {
+          console.error('Supabase SDK 仍不可用，显示诊断提示');
+          showSupabaseDeadWarning();
+        }
+      }, 2500);
+    }
+  } catch(e) {
+    console.error('Supabase 初始化失败:', e);
+    showSupabaseDeadWarning();
+  }
+
+  document.getElementById('configArea').style.display = 'none';
+  document.getElementById('configSaved').style.display = 'block';
+
+  initTheme(); // 初始化主题
+
+  const savedUser = localStorage.getItem(USER_KEY);
+  if (savedUser) {
+    safeEnterApp(savedUser);
+  }
+
+  // 延迟检测：如果3秒后 supabaseClient 仍为 null，也显示警告
+  setTimeout(function(){
+    if(!supabaseClient && !window.supabase){
+      showSupabaseDeadWarning();
+    }
+  }, 3500);
+// Expose all functions needed by HTML onclick/onchange handlers to window
+const _globalFns = [
+  'enterApp','loadDashboardStats','renderTable',
+  'switchPage','toggleTheme','doLogout','showToast',
+  'isManager','isAdmin',
+  'addCustomer','quickAdd','searchCustomer',
+  'loadMyCustomers','loadAllCustomers','loadAdminSummary','loadMemberList',
+  'prepareBatchImport','startBatchImport','resetBatchImport','onBatchInputChange','addBatchLog',
+  'clearMyDateFilter','clearAllDateFilter',
+  'pickDateFrom','pickDateTo','showCustomDatePicker','toggleMyDatePicker','onMyCustomRange',
+  'pickDateFromA','pickDateToA','showCustomDatePickerA','toggleAllDatePicker','onAllCustomRange',
+  'buildAdminMonthOptions','buildAllMonthGrid','pickAllMonth','updateAllDateBtnText',
+  'loadProfile','saveProfileName','changePassword',
+  'showAddMemberForm','hideAddMemberForm','doAddMember','deleteMember','switchMemberRole','fixMemberRoles','resetMemberPwd',
+  'closeDupModal',
+  'saveConfig','showConfigArea',
+  'deleteCustomer',
+  'saveOrder','resetOrderForm','loadOrders','editOrder','deleteOrder','updateOrderStatus',
+  'showOrderDetail','closeOrderModal'
+];
+for (const fn of _globalFns) {
+  if (typeof window[fn] === undefined && typeof eval(fn) === 'function') {
+    // skip - already global or not a function name we can eval
+  }
+}
+// Direct assignments for functions defined in this IIFE:
+try { window.enterApp = enterApp; } catch(e){}
+try { window.loadDashboardStats = loadDashboardStats; } catch(e){}
+try { window.renderTable = renderTable; } catch(e){}
+try { window.switchPage = switchPage; } catch(e){}
+try { window.toggleTheme = toggleTheme; } catch(e){}
+try { window.doLogout = doLogout; } catch(e){}
+try { window.showToast = showToast; } catch(e){}
+try { window.isManager = isManager; } catch(e){}
+try { window.isAdmin = isAdmin; } catch(e){}
+try { window.addCustomer = addCustomer; } catch(e){}
+try { window.quickAdd = quickAdd; } catch(e){}
+try { window.searchCustomer = searchCustomer; } catch(e){}
+try { window.loadMyCustomers = loadMyCustomers; } catch(e){}
+try { window.loadAllCustomers = loadAllCustomers; } catch(e){}
+try { window.loadAdminSummary = loadAdminSummary; } catch(e){}
+try { window.loadMemberList = loadMemberList; } catch(e){}
+try { window.prepareBatchImport = prepareBatchImport; } catch(e){}
+try { window.startBatchImport = startBatchImport; } catch(e){}
+try { window.resetBatchImport = resetBatchImport; } catch(e){}
+try { window.onBatchInputChange = onBatchInputChange; } catch(e){}
+try { window.clearMyDateFilter = clearMyDateFilter; } catch(e){}
+try { window.clearAllDateFilter = clearAllDateFilter; } catch(e){}
+try { window.pickDateFrom = pickDateFrom; } catch(e){}
+try { window.pickDateTo = pickDateTo; } catch(e){}
+try { window.showCustomDatePicker = showCustomDatePicker; } catch(e){}
+try { window.toggleMyDatePicker = toggleMyDatePicker; } catch(e){}
+try { window.onMyCustomRange = onMyCustomRange; } catch(e){}
+try { window.pickDateFromA = pickDateFromA; } catch(e){}
+try { window.pickDateToA = pickDateToA; } catch(e){}
+try { window.showCustomDatePickerA = showCustomDatePickerA; } catch(e){}
+try { window.toggleAllDatePicker = toggleAllDatePicker; } catch(e){}
+try { window.onAllCustomRange = onAllCustomRange; } catch(e){}
+try { window.toggleOrdDatePicker = toggleOrdDatePicker; } catch(e){}
+try { window.clearOrdDateFilter = clearOrdDateFilter; } catch(e){}
+try { window.pickDateFromO = pickDateFromO; } catch(e){}
+try { window.pickDateToO = pickDateToO; } catch(e){}
+try { window.onOrdCustomRange = onOrdCustomRange; } catch(e){}
+try { window.buildAdminMonthOptions = buildAdminMonthOptions; } catch(e){}
+try { window.buildAllMonthGrid = buildAllMonthGrid; } catch(e){}
+try { window.pickAllMonth = pickAllMonth; } catch(e){}
+try { window.updateAllDateBtnText = updateAllDateBtnText; } catch(e){}
+try { window.loadProfile = loadProfile; } catch(e){}
+try { window.saveProfileName = saveProfileName; } catch(e){}
+try { window.changePassword = changePassword; } catch(e){}
+try { window.showAddMemberForm = showAddMemberForm; } catch(e){}
+try { window.hideAddMemberForm = hideAddMemberForm; } catch(e){}
+try { window.doAddMember = doAddMember; } catch(e){}
+try { window.deleteMember = deleteMember; } catch(e){}
+try { window.switchMemberRole = switchMemberRole; } catch(e){}
+try { window.fixMemberRoles = fixMemberRoles; } catch(e){}
+try { window.resetMemberPwd = resetMemberPwd; } catch(e){}
+try { window.closeDupModal = closeDupModal; } catch(e){}
+try { window.saveConfig = saveConfig; } catch(e){}
+try { window.showConfigArea = showConfigArea; } catch(e){}
+try { window.deleteCustomer = deleteCustomer; } catch(e){}
+try { window.saveOrder = saveOrder; } catch(e){}
+try { window.resetOrderForm = resetOrderForm; } catch(e){}
+try { window.loadOrders = loadOrders; } catch(e){}
+try { window.editOrder = editOrder; } catch(e){}
+try { window.deleteOrder = deleteOrder; } catch(e){}
+try { window.updateOrderStatus = updateOrderStatus; } catch(e){}
+
+try { window.showOrderDetail = showOrderDetail; } catch(e){}
+try { window.closeOrderModal = closeOrderModal; } catch(e){}
+try { window.goMyPage = goMyPage; } catch(e){}
+try { window.goAllPage = goAllPage; } catch(e){}
+try { window.toggleMySort = toggleMySort; } catch(e){}
+try { window.toggleAllSort = toggleAllSort; } catch(e){}
+try { window.applyOwnerBadgeColors = applyOwnerBadgeColors; } catch(e){}
+
+})();
+
+function showSupabaseDeadWarning(){
+  var card = document.querySelector('.login-card');
+  if(!card || card.querySelector('.supabase-warn')) return;
+  var warn = document.createElement('div');
+  warn.className = 'supabase-warn';
+  warn.style.cssText = 'background:rgba(220,38,38,.12);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:12px 16px;color:#fca5a5;font-size:12.5px;margin-bottom:18px;line-height:1.6;';
+  warn.innerHTML = '<b>⚠️ 数据库连接异常</b><br>Supabase SDK 加载失败，可能原因：<br>1. 网络/防火墙屏蔽了 CDN（jsdelivr/unpkg）<br>2. 需要开启代理/VPN<br><br>建议：检查网络后刷新页面。如果持续无法使用，可下载 <code>@supabase/supabase-js</code> 到本地引用。';
+  var configSaved = document.getElementById('configSaved');
+  if(configSaved){ configSaved.parentNode.insertBefore(warn, configSaved); }
+}
+
+function showConfigArea() { document.getElementById('configArea').style.display='block'; document.getElementById('configSaved').style.display='none'; }
+
+function saveConfig() {
+  const url=document.getElementById('cfgUrl').value.trim(), key=document.getElementById('cfgKey').value.trim();
+  if(!url||!key){showToast('请完整填写 URL 和 Key','error');return;}
+  localStorage.setItem(CONFIG_KEY,JSON.stringify({url,key}));
+  initSupabase(url,key);
+  showToast('配置已保存','success');
+  document.getElementById('configArea').style.display='none';
+  document.getElementById('configSaved').style.display='block';
+}
+
+function initSupabase(url,key){ supabaseClient=window.supabase.createClient(url,key); }
+
+// ============================================================
+// 登录/登出
+// ============================================================
+let _loginBusy = false;
+
+function doLogin(){
+  if(_loginBusy) return;
+  const name=document.getElementById('loginName').value.trim();
+  const uid=document.getElementById('loginId').value.trim();
+  if(!name){showToast('请输入姓名','error');return;}
+  if(!uid){showToast('请输入密码','error');return;}
+
+  const btn = document.querySelector('.btn-login');
+  btn.textContent = '登录中…';
+  btn.style.opacity = '0.6';
+  _loginBusy = true;
+
+  // 如果 Supabase 还没初始化，尝试重新初始化
+  if(!supabaseClient && window.supabase){
+    initSupabase(DEFAULT_URL, DEFAULT_KEY);
+  }
+  if(!supabaseClient){
+    showToast('数据库连接失败，请检查网络或 CDN 是否可访问','error');
+    console.error('Supabase client 未初始化，window.supabase=', !!window.supabase);
+    _resetLoginBtn();
+    return;
+  }
+
+  // 用 .select() 而非 .single()，避免"无结果时抛异常"
+  supabaseClient.from('members').select('*').eq('name', name)
+  .then(({data:rows, error})=>{
+    if(error){
+      console.error('登录查询 error:', error);
+      let errMsg = error.message || JSON.stringify(error);
+      if(error.code === '42501' || errMsg.includes('row level security') || errMsg.includes('permission')){
+        errMsg = '数据库权限不足（RLS），请联系管理员';
+      }
+      showToast(`登录失败: ${errMsg}`,'error');
+      _resetLoginBtn();
+      return;
+    }
+    // 检查是否找到用户
+    if(!rows || rows.length === 0){
+      showToast('用户不存在，请检查姓名是否正确','error');
+      _resetLoginBtn();
+      return;
+    }
+    const member = rows[0];
+    // 验证密码
+    if(member.password !== uid){
+      showToast('密码错误','error');
+      _resetLoginBtn();
+      return;
+    }
+    currentUser = { name: member.name, uid: member.uid, role: member.role || 'member' };
+    localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+    enterApp();
+    showToast(`欢迎，${member.name}`,'success');
+  })
+  .catch(err => {
+    console.error('登录请求异常:', err);
+    const msg = (err?.message || err?.statusText || String(err)).slice(0, 120);
+    showToast(`登录异常: ${msg}`,'error');
+    _resetLoginBtn();
+  });
+}
+
+function _resetLoginBtn(){
+  _loginBusy = false;
+  const btn = document.querySelector('.btn-login');
+  if(btn){ btn.textContent = '进入系统'; btn.style.opacity = ''; }
+}
+
+// 兼容旧数据：如果 localStorage 里存的 user 没有 uid，自动清除重新登录
+function safeEnterApp(savedUser){
+  try {
+    const u = typeof savedUser === 'string' ? JSON.parse(savedUser) : savedUser;
+    if(!u || !u.name || !u.uid){
+      // 缺少必要字段 → 清除旧数据
+      localStorage.removeItem(USER_KEY);
+      return false;
+    }
+    currentUser = u;
+    enterApp();
+    return true;
+  } catch(e) {
+    localStorage.removeItem(USER_KEY);
+    return false;
+  }
+}
+
+function doLogout(){
+  currentUser=null;
+  localStorage.removeItem(USER_KEY);
+  document.getElementById('appPage').classList.remove('active');
+  document.getElementById('loginPage').style.display='flex';
+  _resetLoginBtn();
+  window._loginBusy = false;
+  window._resetLoginBtn();
+  showToast('已退出','success');
+}
+
+function enterApp(){
+  // Sync currentUser from doLogin (which sets window.currentUser)
+  if(window.currentUser && !currentUser) currentUser = window.currentUser;
+  // Sync supabaseClient from doLogin
+  if(window.supabaseClient && !supabaseClient) supabaseClient = window.supabaseClient;
+  document.getElementById('loginPage').style.display='none';
+  document.getElementById('appPage').classList.add('active');
+  document.getElementById('sidebarUserName').textContent=`当前用户：${currentUser.name}`;
+  // 所有用户显示国家饼图
+  document.getElementById('countryChartCard').style.display='';
+  
+  // ADMIN / MANAGER 显示成员管理 + 销售汇总
+  // 管理员/超管设置
+  if(isManager()){
+    document.getElementById('navMemberMgr').style.display='';
+    document.getElementById('adminSummaryCard').style.display='';
+    buildAdminMonthOptions();
+  }
+  if(isAdmin()) document.getElementById('addMemRoleAdminOpt').style.display='';
+  populateMonthSelects();
+
+  // 并行加载工作台统计 + 管理员汇总（原来串行等 adminSummary 完才跑 dashboard）
+  loadDashboardStats();
+  if(isManager()) loadAdminSummary();
+}
+
+// ============================================================
+// 填充月份下拉（新增/批量导入页面）
+// ============================================================
+function populateMonthSelects(){
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth() + 1;
+  // 遍历最近12个月，填充所有 id 以 MonthSelect 结尾的 <select>
+  document.querySelectorAll('select[id$="MonthSelect"]').forEach(sel => {
+    if(sel.id === 'adminSumMonthSelect') return; // 管理员汇总由 buildAdminMonthOptions 处理
+    const val = sel.value; // 保留已选值
+    sel.innerHTML = '<option value="">选择月份</option>';
+    for(let i = 0; i < 12; i++){
+      const d = new Date(y, m - 1 - i, 1);
+      const opt = document.createElement('option');
+      opt.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      opt.textContent = `${d.getFullYear()}年${d.getMonth()+1}月`;
+      sel.appendChild(opt);
+    }
+    if(val) sel.value = val;
+  });
+}
+
+// ============================================================
+// 页面切换
+// ============================================================
+function switchPage(pageId,btnEl){
+  document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('sec'+pageId.charAt(0).toUpperCase()+pageId.slice(1)).classList.add('active');
+  btnEl.classList.add('active');
+  if(pageId==='dashboard')loadDashboardStats();
+  else if(pageId==='myCustomers')loadMyCustomers();
+  else if(pageId==='allCustomers')loadAllCustomers();
+  else if(pageId==='profile')loadProfile();
+  else if(pageId==='memberManage')loadMemberList();
+  else if(pageId==='orderManage'){resetOrderForm();loadOrders();}
+}
+
+// ============================================================
+// Toast
+// ============================================================
+let toastTimer=null;
+function showToast(msg,type='success'){
+  if(toastTimer)clearTimeout(toastTimer);
+  let el=document.querySelector('.toast');if(el)el.remove();
+  el=document.createElement('div');el.className=`toast toast-${type}`;el.textContent=msg;
+  document.body.appendChild(el);
+  toastTimer=setTimeout(()=>{if(el.parentNode)el.remove()},3200);
+}
+
+// ============================================================
+// 统计
+// ============================================================
+async function loadDashboardStats(){
+  if(!supabaseClient)return;
+  setStat('statTotal','...');setStat('statMine','...');setStat('statTodayNew','...');setStat('statTodayDup','...');setStat('statDupPhones','...');
+  try{
+    const todayStr=(new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')+'-'+String(new Date().getDate()).padStart(2,'0'));
+    const todayStart=todayStr+'T00:00:00+08:00';
+    const todayEnd=todayStr+'T23:59:59+08:00';
+
+    // 查询1: 全表 count + 总重复号码（只选需要的字段！）
+    const{data:allData,error:e1}=await supabaseClient
+      .from('customers').select('phone,owner_name,attempt_count,created_at');
+    if(e1)throw e1;
+
+    // 公司总数
+    const total=allData?allData.length:0;
+    setStat('statTotal',total);
+
+    // 我的客户数（一次 filter，不需要 extra query）
+    let myCount=0, myTodayNew=0;
+    const todayDupPhones=new Set(), allDupPhones=new Set();
+    for(let i=0;i<total;i++){
+      const c=allData[i];
+      // 统计总重复
+      if(c.attempt_count&&c.attempt_count>1) allDupPhones.add(c.phone);
+      // 我的客户
+      if(c.owner_name===currentUser.name){
+        myCount++;
+        // 今日新增
+        if(c.created_at&&c.created_at>=todayStart&&c.created_at<=todayEnd){
+          myTodayNew++;
+          // 今日重复
+          if(c.attempt_count&&c.attempt_count>1) todayDupPhones.add(c.phone);
+        }
+      }
+    }
+
+    setStat('statMine',myCount);
+    setStat('statTodayNew',myTodayNew);
+    setStat('statTodayDup',todayDupPhones.size);
+    setStat('statDupPhones',allDupPhones.size);
+
+    // 饼图数据（复用已拉取的数据，不再二次请求）
+    if(total>0){
+      const myOnly=!isManager();
+      const pieData=buildCountryPieData(allData,myOnly);
+      window.__lastPieData={data:pieData,myOnly};
+      renderCountryPieChart(pieData);
+    }
+  }catch(err){console.error(err);showToast('统计加载失败：'+(err.message||err),'error');}
+}
+
+/**
+ * 构建国家来源饼图数据（纯计算，不涉及 DOM/Canvas）
+ * @param {Array} allData - 全部客户记录
+ * @param {boolean} isMyDataOnly - 是否为普通成员视角
+ * @returns {Object} { entries, legendEntries, allTotal, myTotal, legendTotal }
+ */
+function buildCountryPieData(allData, isMyDataOnly){
+  // 1. 全量客户的各国分布（用于绘制完整饼图形状）
+  const allCountryMap = {};
+  for(const c of allData){
+    if(!c.phone) continue;
+    const countryInfo = detectCountry(c.phone);
+    const name = countryInfo ? (countryInfo.country.split(' ')[0] || '其他') : '未知';
+    allCountryMap[name] = (allCountryMap[name] || 0) + 1;
+  }
+
+  // 2. 当前用户的各国分布（用于图例 + 中心数字）
+  const myCountryMap = {};
+  let myTotal = 0;
+  for(const c of allData){
+    if(!c.phone || (isMyDataOnly && c.owner_name !== currentUser.name)) continue;
+    const countryInfo = detectCountry(c.phone);
+    const name = countryInfo ? (countryInfo.country.split(' ')[0] || '其他') : '未知';
+    myCountryMap[name] = (myCountryMap[name] || 0) + 1;
+    myTotal++;
+  }
+
+  // 按全量数据降序排列，取前 8 个，其余归入"其他"
+  let entries = Object.entries(allCountryMap).sort((a,b) => b[1] - a[1]);
+  if(entries.length > 8){
+    const top = entries.slice(0, 7);
+    const restCount = entries.slice(7).reduce((s, e) => s + e[1], 0);
+    entries = [...top, ['其他', restCount]];
+  }
+  const allTotal = allData.length;
+
+  // 图例数据源：管理员用全量，普通成员用自己的
+  const legendBase = isMyDataOnly ? myCountryMap : allCountryMap;
+  const legendTotal = isMyDataOnly ? myTotal : allTotal;
+
+  // 图例排序：只显示有数据的，按数量从高到低，最多8个
+  let legendEntries = Object.entries(legendBase)
+    .filter(([name,count]) => count > 0)
+    .sort((a,b) => b[1] - a[1]);
+  if(legendEntries.length > 8){
+    const topL = legendEntries.slice(0, 7);
+    const restL = legendEntries.slice(7).reduce((s, e) => s + e[1], 0);
+    legendEntries = [...topL, ['其他', restL]];
+  }
+
+  return { entries, legendEntries, allTotal, myTotal, legendTotal };
+}
+function setStat(id,val){const el=document.getElementById(id);if(el){el.textContent=val;console.log('[setStat] #'+id + ' = ' + val + ' | 实际DOM text = ' + el.textContent);} else {console.warn('[WARN] 找不到元素 #'+id);}}
+
+/* ====== 国家来源饼图（纯 Canvas，无依赖）====== */
+const PIE_COLORS = [
+  '#6366f1','#8b5cf6','#a78bfa','#c084fc','#e879f9',
+  '#ec4899','#f43f5e','#fb7185','#f97316','#eab308',
+  '#84cc16','#22c55e','#10b981','#14b8a6','#06b6d4',
+  '#0ea5e9','#3b82f6','#6366f1','#818cf8','#a5b4fc',
+  '#d8b4fe','#f9a8d4','#fda4af','#fdba74','#86efac'
+];
+
+function renderCountryPieChart(pieData){
+  const canvas = document.getElementById('countryPieCanvas');
+  const legend = document.getElementById('countryLegend');
+  if(!canvas || !legend || !pieData) return;
+
+  const { entries, legendEntries, allTotal, myTotal, legendTotal } = pieData;
+  const isMyDataOnly = myTotal < allTotal || (legendEntries.length !== entries.length);
+
+  if(entries.length === 0 || allTotal === 0){
+    canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+    legend.innerHTML = '<span style="color:#64748b;font-size:12px;">暂无数据</span>';
+    return;
+  }
+
+  // 绘制 Canvas 饼图
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const displayW = 220, displayH = 220;
+  canvas.width = displayW * dpr;
+  canvas.height = displayH * dpr;
+  canvas.style.width = displayW + 'px';
+  canvas.style.height = displayH + 'px';
+  ctx.scale(dpr, dpr);
+
+  const cx = displayW / 2, cy = displayH / 2;
+  const radius = Math.max(1, Math.min(cx, cy) - 12);
+  const innerRadius = Math.max(0.01, radius * 0.52);
+
+  let startAngle = -Math.PI / 2;
+
+  for(let i = 0; i < entries.length; i++){
+    const [name, count] = entries[i];
+    const slice = count / allTotal;
+    const sweep = slice * 2 * Math.PI;
+
+    if(sweep < 0.0001) continue;
+
+    // 扇形
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(startAngle) * innerRadius, cy + Math.sin(startAngle) * innerRadius);
+    ctx.arc(cx, cy, radius, startAngle, startAngle + sweep, false);
+    ctx.arc(cx, cy, innerRadius, startAngle + sweep, startAngle, true);
+    ctx.closePath();
+    ctx.fillStyle = PIE_COLORS[i % PIE_COLORS.length];
+    ctx.fill();
+
+    // 分割线（细线）
+    ctx.strokeStyle = isLightMode() ? 'rgba(15,23,42,.08)' : 'rgba(248,250,252,.06)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    startAngle += sweep;
+  }
+
+  // 中心圆（镂空效果）
+  ctx.beginPath();
+  ctx.arc(cx, cy, innerRadius - 0.5, 0, Math.PI * 2);
+  ctx.fillStyle = isLightMode() ? '#fff' : '#1e293b';
+  ctx.fill();
+
+  // 中心文字
+  ctx.fillStyle = isLightMode() ? '#334155' : '#94a3b8';
+  ctx.font = '600 13px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const centerNum = isMyDataOnly ? myTotal : allTotal;
+  ctx.fillText(centerNum + ' 位', cx, cy - 7);
+  ctx.font = '500 10px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif';
+  ctx.fillStyle = isLightMode() ? '#94a3b8' : '#64748b';
+  ctx.fillText(isMyDataOnly ? '我的客户' : '客户', cx, cy + 9);
+
+  // 渲染图例
+  let legendHtml = '';
+  for(let idx = 0; idx < legendEntries.length; idx++){
+    const [name, lCount] = legendEntries[idx];
+    const pct = legendTotal > 0 ? ((lCount / legendTotal) * 100).toFixed(1) : '0.0';
+    const origIdx = entries.findIndex(e => e[0] === name);
+    const color = PIE_COLORS[(origIdx >= 0 ? origIdx : idx) % PIE_COLORS.length];
+    legendHtml += `<div class="legend-item">
+      <div class="legend-dot" style="background:${color}"></div>
+      <span class="legend-name">${escHtml(name)}</span>
+      <span class="legend-pct">${pct}%</span>
+      <span class="legend-count">${lCount}</span></div>`;
+  }
+  legend.innerHTML = legendHtml;
+}
+
+function isLightMode(){
+  return document.body.classList.contains('light-mode');
+}
+
+// ============================================================
+// 快速添加
+// ============================================================
+async function quickAdd(){
+  const raw=document.getElementById('quickPhone').value.trim();
+  if(!raw){showToast('请输入手机号','error');return;}
+
+  const clean=cleanPhone(raw);
+  if(!clean||clean.length<4){showToast('手机号太短或不合法','error');return;}
+
+  await doAddPhone(clean, raw);
+  document.getElementById('quickPhone').value='';
+  document.getElementById('quickPhoneHint').innerHTML='';
+}
+
+async function addCustomer(){
+  const raw=document.getElementById('addPhone').value.trim();
+  if(!raw){showToast('请输入手机号','error');return;}
+
+  const clean=cleanPhone(raw);
+  if(!clean||clean.length<4){showToast('手机号太短或不合法','error');return;}
+
+  await doAddPhone(clean, raw);
+  document.getElementById('addPhone').value='';
+  document.getElementById('addPhoneHint').innerHTML='';
+}
+
+// ============================================================
+// 核心逻辑：录入 + 查重（使用清洗后的纯数字比对）
+// ============================================================
+async function doAddPhone(cleanPhoneVal, rawInput){
+  if(!supabaseClient){showToast('数据库未连接','error');return;}
+
+  // 用清洗后的纯数字去数据库查重
+  try{
+    const{data:dup}=await supabaseClient.from('customers').select('*').eq('phone',cleanPhoneVal);
+    console.log('[DEBUG] 查重结果:', JSON.stringify(dup));
+    if(dup&&dup.length>0){
+      // 发现重复 → attempt_count +1
+      const existing = dup[0];
+      console.log('[DEBUG] 当前 attempt_count =', existing.attempt_count, '类型:', typeof existing.attempt_count);
+      const{data:updateRes,error:updateErr}=await supabaseClient.from('customers')
+        .update({ attempt_count: (existing.attempt_count || 0) + 1, updated_at: _cnISO() })
+        .eq('id', existing.id);
+      console.log('[DEBUG] 更新结果:', updateErr ? 'ERROR '+updateErr.message : 'OK', updateRes);
+      // 重新查询最新数据用于弹窗显示
+      const{data:refreshed}=await supabaseClient.from('customers').select('*').eq('id',existing.id);
+      console.log('[DEBUG] 刷新后数据:', JSON.stringify(refreshed));
+      pendingPhone=cleanPhoneVal;
+      showDupModal(refreshed || dup);
+      console.log('[DEBUG] 准备调用 loadDashboardStats(), 调用前 statTotal DOM=', document.getElementById('statTotal')?.textContent);
+      loadDashboardStats(); // 刷新工作台统计
+      console.log('[DEBUG] loadDashboardStats 返回后 statTotal DOM=', document.getElementById('statTotal')?.textContent);
+      return;
+    }
+  }catch(err){console.error('查重出错:',err);}
+
+  // 无重复 → 写入（存清洗后的纯数字）
+  await writePhone(cleanPhoneVal, rawInput);
+}
+
+function showDupModal(dups){
+  const count = dups.length;
+  const dup = dups[0];
+  const attemptCnt = (dup && dup.attempt_count) || count;
+  document.getElementById('dupHint').textContent=`⚠️ 该号码已被尝试录入 ${attemptCnt} 次。如确认是新客户可强制录入。`;
+  const html=dups.map((d,i)=>{
+    const cnt = d.attempt_count || 1;
+    return `
+    <div class="dup-item" style="${i===0?'border-left-color:#ef4444;':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <strong style="color:#f1f5f9;">📱 ${formatPhoneDisplay(d.phone)}</strong>
+        <span style="font-size:11px;color:#f59e0b;font-weight:600;">🔄 尝试 ${cnt} 次</span>
+      </div>
+      归属：<span class="${d.owner_name===currentUser.name?'owner-me':'owner-badge'}">${escHtml(d.owner_name)}</span>
+      | 录入时间：${formatTime(d.created_at)}
+    </div>`;
+  }).join('');
+  document.getElementById('dupList').innerHTML=html;
+  document.getElementById('dupModal').classList.add('show');
+}
+
+function closeDupModal(force){
+  document.getElementById('dupModal').classList.remove('show');
+  if(force&&pendingPhone)writePhone(pendingPhone);
+  pendingPhone=null;
+}
+
+// 写入数据库
+async function writePhone(cleanPhoneVal, rawInput){
+  try{
+    const{data,error}=await supabaseClient.from('customers').insert([{
+      phone: cleanPhoneVal,
+      owner_name: currentUser.name,
+      owner_uid: currentUser.uid,
+      attempt_count: 1,
+      created_at: _cnISO(),
+      updated_at: _cnISO()
+    }]).select();
+
+    if(error){
+      if(error.code==='23505'||(error.message&&error.message.includes('unique'))){
+        showToast('❌ 该号码已存在！','error');return;
+      }
+      throw error;
+    }
+
+    // 成功提示中显示识别到的国家
+    const country = detectCountry(cleanPhoneVal);
+    const displayNum = formatPhoneDisplay(cleanPhoneVal);
+    const msg = country
+      ? `✅ ${displayNum} (${country.country}) 录入成功`
+      : `✅ ${displayNum} 录入成功`;
+    showToast(msg, 'success');
+
+    loadDashboardStats();
+  }catch(err){
+    console.error('写入失败:',err);
+    showToast('写入失败：'+(err.message||JSON.stringify(err)),'error');
+  }
+}
+
+// ============================================================
+// 搜索（支持原始格式、清洗后格式、国家名模糊搜）
+// ============================================================
+async function searchCustomer(){
+  const keyword=document.getElementById('searchInput').value.trim();
+  const c=document.getElementById('searchResults');
+  if(!keyword){c.innerHTML='<div class="empty-state"><div class="icon">🔍</div>请输入搜索内容</div>';return;}
+  if(!supabaseClient){c.innerHTML='<div class="empty-state"><div class="icon">⚠️</div>未连接</div>';return;}
+  c.innerHTML='<div class="loading"><span class="spinner"></span>查询中...</div>';
+
+  // 先清洗关键词
+  const cleanKw = cleanPhone(keyword);
+
+  try{
+    const cleanKw = cleanPhone(keyword);
+    let filters = [];
+    // 按销售姓名搜
+    if(keyword) filters.push(`owner_name.ilike.%${keyword}%`);
+    // 有数字/手机号格式时才搜 phone
+    if(cleanKw) filters.push(`phone.ilike.%${cleanKw}%`);
+    // 国家名匹配：找出对应前缀搜 phone
+    const matchedCountries = COUNTRY_CODES.filter(cc => cc.country.toLowerCase().includes(keyword.toLowerCase()));
+    for(const mc of matchedCountries){
+      const prefix = mc.code.replace('+', '');
+      filters.push(`phone.like.${prefix}%`);
+    }
+
+    if(filters.length === 0){c.innerHTML='<div class="empty-state"><div class="icon">📭</div>未找到匹配</div>';return;}
+
+    const{data,error}=await supabaseClient.from('customers').select('*')
+      .or(filters.join(','))
+      .order('created_at',{ascending:false}).limit(200);
+
+    if(error)throw error;
+    if(!data||!data.length){c.innerHTML='<div class="empty-state"><div class="icon">📭</div>未找到匹配</div>';return;}
+    c.innerHTML=renderTable(data);
+  }catch(err){c.innerHTML=`<div class="empty-state"><div class="icon">❌</div>${escHtml(err.message||err)}</div>`;}
+}
+
+// ============================================================
+// 我的客户
+// ============================================================
+// 排序/分页状态
+let myPage=1;
+const PAGE_SIZE=60;
+let myTotalCount=0;
+let allPage=1;
+let allTotalCount=0;
+async function loadMyCustomers(){
+  const c=document.getElementById('myCustomersList');
+  if(!supabaseClient){c.innerHTML='<div class="empty-state"><div class="icon">⚠️</div>未连接</div>';return;}
+  // 重置到第1页（除非是翻页操作）
+  const sortVal=document.getElementById('mySortVal')?document.getElementById('mySortVal').value:'desc';
+  const ascending=sortVal==='asc';
+  const kwRaw=document.getElementById('mySearchInput')?document.getElementById('mySearchInput').value.trim():'';
+  const kwClean = cleanPhone(kwRaw);
+  const dateFrom = document.getElementById('myDateFrom')?.value || '';
+  const dateTo   = document.getElementById('myDateTo')?.value || '';
+  c.innerHTML='<div class="loading"><span class="spinner"></span>加载中...</div>';
+  try{
+    let q=supabaseClient.from('customers').select('*', {count:'exact'}).eq('owner_name',currentUser.name);
+    if(kwClean)q=q.or(`phone.ilike.%${kwClean}%`);
+    if(dateFrom)q=q.gte('created_at',dateFrom+'T00:00:00+08:00');
+    if(dateTo)q=q.lte('created_at',dateTo+'T23:59:59+08:00');
+    // 单次查询同时获取分页数据和总数
+    const startIdx=(myPage-1)*PAGE_SIZE;
+    const{data,count:cTotal,error}=await q.order('created_at',{ascending:ascending}).range(startIdx,startIdx+PAGE_SIZE-1);
+    if(error) throw error;
+    myTotalCount=cTotal||0;
+    if(error)throw error;
+    if(!data||!data.length){
+      if(myPage>1){myPage=1;loadMyCustomers();return;}
+      c.innerHTML='<div class="empty-state"><div class="icon">📋</div>暂无记录</div>';return;
+    }
+    c.innerHTML=renderTable(data,true)+buildPagination('my',myPage,Math.ceil(myTotalCount/PAGE_SIZE),myTotalCount);
+  applyOwnerBadgeColors();
+  }catch(err){c.innerHTML=`<div class="empty-state"><div class="icon">❌</div>${escHtml(err.message||err)}</div>`;}
+}
+function goMyPage(p){myPage=p;loadMyCustomers();}
+function goAllPage(p){allPage=p;loadAllCustomers();}
+function toggleMySort(){
+  var val=document.getElementById('mySortVal');
+  var txt=document.getElementById('mySortText');
+  var arrow=document.getElementById('mySortArrow');
+  if(val.value==='desc'){
+    val.value='asc';
+    txt.textContent='时间 ↑ 升序';
+    arrow.textContent='▲';
+  }else{
+    val.value='desc';
+    txt.textContent='时间 ↓ 降序';
+    arrow.textContent='▼';
+  }
+  loadMyCustomers();
+}
+
+// 排序切换 - 全部客户
+function toggleAllSort(){
+  var val=document.getElementById('allSortVal');
+  var txt=document.getElementById('allSortText');
+  var arrow=document.getElementById('allSortArrow');
+  if(val.value==='desc'){
+    val.value='asc';
+    txt.textContent='时间 ↑ 升序';
+    arrow.textContent='▲';
+  }else{
+    val.value='desc';
+    txt.textContent='时间 ↓ 降序';
+    arrow.textContent='▼';
+  }
+  loadAllCustomers();
+}
+let myDateDropdownOpen=false;
+function toggleMyDatePicker(){
+  const dd=document.getElementById('myDateDropdown');
+  const btn=document.getElementById('myDateBtn');
+  if(myDateDropdownOpen){
+    myDateDropdownOpen=false;dd.style.display='none';return;
+  }
+  myDateDropdownOpen=true;
+  var rect=btn.getBoundingClientRect();
+  dd.style.top=(rect.bottom+6)+'px';
+  dd.style.left=rect.left+'px';
+  dd.style.display='block';
+  buildMonthGrid();
+}
+// 点击外部关闭（排除自定义日历内部的点击）
+document.addEventListener('click',function(e){
+  if(_suppressMyClose){_suppressMyClose=false;return;}
+  const btn=document.getElementById('myDateBtn');
+  const dd=document.getElementById('myDateDropdown');
+  const cal=document.getElementById('_customCal');
+  if(myDateDropdownOpen&&dd&&!dd.contains(e.target)&&e.target!==btn&&!btn.contains(e.target)&&(!cal||!cal.contains(e.target))){
+    myDateDropdownOpen=false;
+    dd.style.display='none';
+  }
+});
+
+function buildMonthGrid(){
+  const grid=document.getElementById('myMonthGrid');
+  grid.innerHTML='';
+  const now=new Date();
+  for(let i=0;i<12;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,'0');
+    const label=`${y}-${m}`;
+    const display=`${parseInt(m)}月`;
+    // 检查是否当前选中
+    const fromVal=document.getElementById('myDateFrom').value;
+    const toVal=document.getElementById('myDateTo').value;
+    const isSelected=fromVal===`${y}-${m}-01`&&toVal===`${y}-${m}-${new Date(y,parseInt(m),0).getDate()}`;
+    const btn=document.createElement('button');
+    btn.textContent=display;
+    btn.className = isSelected ? 'month-btn month-btn-active' : 'month-btn';
+    btn.onmouseover=function(){if(!this.classList.contains('month-btn-active'))this.classList.add('month-btn-hover');};
+    btn.onmouseout=function(){if(!this.classList.contains('month-btn-active'))this.classList.remove('month-btn-hover')};
+    btn.onclick=function(){pickMonth(y,m);};
+    grid.appendChild(btn);
+  }
+}
+
+function pickMonth(y,m){
+  const lastDay=new Date(y,parseInt(m),0).getDate();
+  document.getElementById('myDateFrom').value=`${y}-${m}-01`;
+  document.getElementById('myDateTo').value=`${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+  updateDateBtnText();
+  document.getElementById('myDateDropdown').style.display='none';
+  myDateDropdownOpen=false;
+  loadMyCustomers();
+}
+
+function onMyCustomRange(){
+  updateDateBtnText();
+  loadMyCustomers();
+}
+
+function updateDateBtnText(){
+  const f=document.getElementById('myDateFrom').value;
+  const t=document.getElementById('myDateTo').value;
+  const txt=document.getElementById('myDateBtnText');
+  const clearBtn=document.getElementById('myClearDateBtn');
+  const fromBtn=document.getElementById('myDateFromBtn');
+  const toBtn=document.getElementById('myDateToBtn');
+  if(f||t){
+    if(f&&t){
+      const fd=f.slice(5);const td=t.slice(5);
+      fromBtn.textContent=fd;
+      toBtn.textContent=td;
+      if(fd===td){txt.textContent=f.slice(0,7).replace('-','年')+'月';}
+      else{txt.textContent=`${fd} ~ ${td}`;}
+    }else if(f){fromBtn.textContent=f.slice(5);toBtn.textContent='结束日期';txt.textContent=f.slice(5)+' 起';}
+    else{fromBtn.textContent='开始日期';toBtn.textContent=t.slice(5);txt.textContent='~ '+t.slice(5);}
+    clearBtn.style.display='';
+  }else{
+    txt.textContent='选择日期';
+    clearBtn.style.display='none';
+    fromBtn.textContent='开始日期';
+    toBtn.textContent='结束日期';
+  }
+}
+
+// 自定义日期选择器（替代原生 input[type=date]）
+// _datePickerTarget: 'from' | 'to'  （当前激活的目标：from=开始, to=结束）
+let _datePickerTarget=null;
+// 阻止下一次 document click 关闭下拉（选完 from 后切换到 to 时用）
+let _suppressMyClose=false;
+function pickDateFrom(){
+  _datePickerTarget='from';
+  showCustomDatePicker(document.getElementById('myDateFrom').value);
+}
+function pickDateTo(){
+  _datePickerTarget='to';
+  showCustomDatePicker(document.getElementById('myDateTo').value);
+}
+
+function showCustomDatePicker(initialVal){
+  var container=document.getElementById('myCalendarContainer');
+  if(!container) return;
+  container.innerHTML='';
+
+  var _light=isLightMode();
+  var _bg=_light?'#fff':'#0f172a';
+  var _bdc=_light?'rgba(148,163,184,.25)':'rgba(148,163,184,.15)';
+  var _tc=_light?'#334155':'#e2e8f0';
+
+  var todayStr=(new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')+'-'+String(new Date().getDate()).padStart(2,'0'));
+  var todayObj=new Date(todayStr+'T00:00:00');
+  console.log('[CAL-DEBUG] todayStr='+todayStr+', todayObj='+todayObj.toISOString());
+  window._calTodayStr=todayStr;
+
+  // hoverDs：鼠标悬停日期，用于预览区间
+  var hoverDs=null;
+
+  var now=initialVal?new Date(initialVal+'T00:00:00'):new Date();
+  var y=now.getFullYear(),m=now.getMonth(),d=now.getDate();
+
+  function render(){
+    const firstDay=new Date(y,m,1).getDay(); // 0=Sun
+    const daysInMonth=new Date(y,m+1,0).getDate();
+    const L=_light;
+
+    const fromVal = document.getElementById('myDateFrom').value || '';
+    const toVal   = document.getElementById('myDateTo').value   || '';
+
+    let h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
+    h+='<button type="button" onclick="event.stopPropagation();_calNav(-1)" class="cal-nav-btn">‹</button>';
+    h+='<span style="font-weight:600;font-size:14px;color:'+(L?'#1e293b':'#f1f5f9')+';">'+y+'年'+String(m+1).padStart(2,'0')+'月</span>';
+    h+='<button type="button" onclick="event.stopPropagation();_calNav(1)" class="cal-nav-btn">›</button>';
+    h+='</div>';
+
+    // 星期头
+    h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;margin-bottom:6px;">';
+    ['一','二','三','四','五','六','日'].forEach(w=>{
+      h+='<span class="cal-weekday">'+w+'</span>';
+    });
+    h+='</div>';
+
+    // 日期格子
+    h+='<div id="_calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;">';
+
+    const startOffset=(firstDay+6)%7;
+    for(let i=0;i<startOffset;i++)h+='<span></span>';
+
+    // 确定预览区间端点（选 to 时：from 已定，hover 为预览 to）
+    var previewFrom=fromVal, previewTo=toVal;
+    if(_datePickerTarget==='to'&&fromVal&&hoverDs){
+      if(hoverDs>=fromVal) previewTo=hoverDs;
+      else{previewFrom=hoverDs;previewTo=fromVal;}
+    } else if(_datePickerTarget==='from'&&toVal&&hoverDs){
+      if(hoverDs<=toVal) previewFrom=hoverDs;
+      else{previewFrom=toVal;previewTo=hoverDs;}
+    }
+
+    for(let day=1;day<=daysInMonth;day++){
+      const ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+      const isToday=ds===todayStr;
+
+      // 区间类
+      var rangeClass='';
+      if(previewFrom&&previewTo){
+        if(ds===previewFrom&&ds===previewTo) rangeClass='cal-day-from cal-day-to';
+        else if(ds===previewFrom) rangeClass='cal-day-from';
+        else if(ds===previewTo) rangeClass='cal-day-to';
+        else if(ds>previewFrom&&ds<previewTo) rangeClass='cal-day-range';
+      } else if(previewFrom&&ds===previewFrom){
+        rangeClass='cal-day-from cal-day-to';
+      } else if(previewTo&&ds===previewTo){
+        rangeClass='cal-day-from cal-day-to';
+      }
+
+      let cls='cal-day';
+      if(rangeClass) cls+=' '+rangeClass;
+      else if(isToday) cls+=' cal-day-today';
+
+      // 禁用逻辑
+      let disabled=false;
+      const thisDate=new Date(ds+'T00:00:00');
+      if(thisDate>todayObj) disabled=true;
+      else if(_datePickerTarget==='from'&&toVal){
+        if(thisDate>new Date(toVal+'T23:59:59')) disabled=true;
+      }else if(_datePickerTarget==='to'&&fromVal){
+        if(thisDate<new Date(fromVal+'T00:00:00')) disabled=true;
+      }
+
+      if(disabled){
+        h+='<span class="cal-day" style="opacity:.22;cursor:not-allowed;color:'+(L?'#cbd5e1':'#475569')+'">'+day+'</span>';
+      }else{
+        h+='<button type="button" data-cal-date="'+ds+'" class="'+cls+'" style="padding:5px 2px;">'+day+'</button>';
+      }
+    }
+    h+='</div>';
+
+    // 底部操作栏
+    h+='<div style="display:flex;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid '+(L?'rgba(148,163,184,.15)':'rgba(148,163,184,.08)')+';">';
+    h+='<button type="button" onclick="event.stopPropagation();_calClear()" class="cal-action-btn cal-btn-clear">清除</button>';
+    h+='<button type="button" onclick="event.stopPropagation();_calLast7()" class="cal-action-btn cal-btn-last7">过去7天</button>';
+    h+='<button type="button" onclick="event.stopPropagation();_calToday()" class="cal-action-btn cal-btn-today">今天</button>';
+    h+='</div>';
+
+    container.innerHTML=h;
+
+    // 用 addEventListener 绑定事件（替代不稳定的内联 onclick/onmouseenter）
+    container.querySelectorAll('button[data-cal-date]').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var ds=this.getAttribute('data-cal-date');
+        var parts=ds.split('-');
+        _calPick(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), e);
+      });
+      btn.addEventListener('mouseenter', function(){
+        _calHover(this.getAttribute('data-cal-date'));
+      });
+      btn.addEventListener('mouseleave', function(){
+        _calHover(null);
+      });
+    });
+  }
+
+  window._calY=y;window._calM=m;window._calD=d;
+
+  // hover预览已禁用 - 防止render()导致按钮重建、点击事件丢失
+  window._calHover=function(ds){
+    hoverDs=ds;
+    // 不调用 render()，避免 innerHTML 重建DOM导致点击失效
+  };
+  window._calNav=function(dir){
+    m+=dir;if(m<0){m=11;y--;}if(m>11){m=0;y++;}
+    window._calY=y;window._calM=m;render();
+  };
+  window._calPick=function(py,pm,pd,ev){
+    if(ev)ev.stopPropagation();
+    var val=py+'-'+String(pm+1).padStart(2,'0')+'-'+String(pd).padStart(2,'0');
+    var picked=new Date(val+'T00:00:00');
+    if(picked>todayObj){showToast((_datePickerTarget==='from'?'开始':'结束')+'日期不能超过今天','error');return;}
+    var fromV=document.getElementById('myDateFrom').value||'';
+    var toV=document.getElementById('myDateTo').value||'';
+    if(_datePickerTarget==='from'&&toV&&picked>new Date(toV+'T23:59:59')){showToast('开始日期不能晚于结束日期','error');return;}
+    if(_datePickerTarget==='to'&&fromV&&picked<new Date(fromV+'T00:00:00')){showToast('结束日期不能早于开始日期','error');return;}
+    if(_datePickerTarget==='from'){
+      document.getElementById('myDateFrom').value=val;
+      _datePickerTarget='to';
+      updateDateBtnText();
+      // 阻止本次 click 冒泡触发外部关闭
+      _suppressMyClose=true;
+      hoverDs=null;
+      render();
+      return;
+    } else {
+      document.getElementById('myDateTo').value=val;
+      container.innerHTML='';
+      var ddm=document.getElementById('myDateDropdown');
+      if(ddm)ddm.style.display='none';
+      myDateDropdownOpen=false;
+    }
+    updateDateBtnText();loadMyCustomers();
+  };
+  window._calClear=function(){
+    document.getElementById('myDateFrom').value='';
+    document.getElementById('myDateTo').value='';
+    container.innerHTML='';
+    var ddc=document.getElementById('myDateDropdown');
+    if(ddc)ddc.style.display='none';
+    myDateDropdownOpen=false;
+    updateDateBtnText();loadMyCustomers();
+  };
+  window._calToday=function(){
+    document.getElementById('myDateFrom').value=todayStr;
+    document.getElementById('myDateTo').value=todayStr;
+    container.innerHTML='';
+    var ddt=document.getElementById('myDateDropdown');
+    if(ddt)ddt.style.display='none';
+    myDateDropdownOpen=false;
+    updateDateBtnText();loadMyCustomers();
+  };
+  window._calLast7=function(){
+    var today=new Date();
+    var weekAgo=new Date(today);weekAgo.setDate(today.getDate()-7);
+    var fv=(weekAgo.getFullYear()+'-'+String(weekAgo.getMonth()+1).padStart(2,'0')+'-'+String(weekAgo.getDate()).padStart(2,'0'));
+    var tv=(today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0'));
+    document.getElementById('myDateFrom').value=fv;
+    document.getElementById('myDateTo').value=tv;
+    container.innerHTML='';
+    var dl7=document.getElementById('myDateDropdown');
+    if(dl7)dl7.style.display='none';
+    myDateDropdownOpen=false;
+    updateDateBtnText();loadMyCustomers();
+  };
+
+  render();
+}
+
+// 清除日期筛选
+function clearMyDateFilter(){
+  document.getElementById('myDateFrom').value='';
+  document.getElementById('myDateTo').value='';
+  updateDateBtnText();
+  buildMonthGrid();
+  loadMyCustomers();
+}
+
+// ============================================================
+// 全部客户 - 日期下拉面板（复用我的客户面板逻辑）
+// ============================================================
+let allDateDropdownOpen=false;
+function toggleAllDatePicker(){
+  const dd=document.getElementById('allDateDropdown');
+  const btn=document.getElementById('allDateBtn');
+  if(allDateDropdownOpen){
+    allDateDropdownOpen=false;dd.style.display='none';return;
+  }
+  allDateDropdownOpen=true;
+  var rect=btn.getBoundingClientRect();
+  dd.style.top=(rect.bottom+6)+'px';
+  dd.style.left=rect.left+'px';
+  dd.style.display='block';
+  buildAllMonthGrid();
+}
+document.addEventListener('click',function(e){
+  if(_suppressAllClose){_suppressAllClose=false;return;}
+  const btn=document.getElementById('allDateBtn');
+  const dd=document.getElementById('allDateDropdown');
+  const calA=document.getElementById('_customCalA');
+  if(allDateDropdownOpen&&dd&&!dd.contains(e.target)&&e.target!==btn&&!btn.contains(e.target)&&(!calA||!calA.contains(e.target))){
+    allDateDropdownOpen=false;
+    dd.style.display='none';
+  }
+});
+
+function buildAllMonthGrid(){
+  const grid=document.getElementById('allMonthGrid');
+  grid.innerHTML='';
+  const now=new Date();
+  for(let i=0;i<12;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');
+    const fromVal=document.getElementById('allDateFrom').value;
+    const toVal=document.getElementById('allDateTo').value;
+    const isSelected=fromVal===`${y}-${m}-01`&&toVal===`${y}-${m}-${new Date(y,parseInt(m),0).getDate()}`;
+    const btn=document.createElement('button');
+    btn.textContent=`${parseInt(m)}月`;
+    btn.className = isSelected ? 'month-btn month-btn-active' : 'month-btn';
+    btn.onmouseover=function(){if(!this.classList.contains('month-btn-active'))this.classList.add('month-btn-hover');};
+    btn.onmouseout=function(){if(!this.classList.contains('month-btn-active'))this.classList.remove('month-btn-hover')};
+    btn.onclick=(function(ym,yy,mm){return function(){pickAllMonth(yy,mm);};})(i,y,m);
+    grid.appendChild(btn);
+  }
+}
+
+function pickAllMonth(y,m){
+  const lastDay=new Date(y,parseInt(m),0).getDate();
+  document.getElementById('allDateFrom').value=`${y}-${m}-01`;
+  document.getElementById('allDateTo').value=`${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+  updateAllDateBtnText();
+  document.getElementById('allDateDropdown').style.display='none';
+  allDateDropdownOpen=false;
+  loadAllCustomers();
+}
+
+function onAllCustomRange(){
+  updateAllDateBtnText();
+  loadAllCustomers();
+}
+
+function updateAllDateBtnText(){
+  const f=document.getElementById('allDateFrom').value;const t=document.getElementById('allDateTo').value;
+  const txt=document.getElementById('allDateBtnText');const clearBtn=document.getElementById('allClearDateBtn');
+  const fromBtn=document.getElementById('allDateFromBtn');const toBtn=document.getElementById('allDateToBtn');
+  if(f||t){
+    if(f&&t){const fd=f.slice(5);const td=t.slice(5);fromBtn.textContent=fd;toBtn.textContent=td;if(fd===td){txt.textContent=f.slice(0,7).replace('-','年')+'月';}else{txt.textContent=`${fd} ~ ${td}`;}}
+    else if(f){fromBtn.textContent=f.slice(5);toBtn.textContent='结束日期';txt.textContent=f.slice(5)+' 起';}
+    else{fromBtn.textContent='开始日期';toBtn.textContent=t.slice(5);txt.textContent='~ '+t.slice(5);}
+    clearBtn.style.display='';}else{txt.textContent='选择日期';clearBtn.style.display='none';fromBtn.textContent='开始日期';toBtn.textContent='结束日期';}
+}
+
+function clearAllDateFilter(){
+  document.getElementById('allDateFrom').value='';
+  document.getElementById('allDateTo').value='';
+  updateAllDateBtnText();
+  buildAllMonthGrid();
+  loadAllCustomers();
+}
+
+// ============================================================
+// 订单管理 - 日期下拉面板（与客户页面一致的完整实现）
+// ============================================================
+let ordDateDropdownOpen=false;
+function toggleOrdDatePicker(){
+  var dd=document.getElementById('ordDateDropdown');
+  var btn=document.getElementById('ordDateBtn');
+  if(ordDateDropdownOpen){ordDateDropdownOpen=false;dd.style.display='none';return;}
+  ordDateDropdownOpen=true;
+  var rect=btn.getBoundingClientRect();
+  dd.style.display='block';
+  buildOrdMonthGrid();
+  var pH=dd.offsetHeight||340;
+  var t=rect.top-pH-6;
+  if(t<2)t=2;
+  dd.style.top=t+'px';
+  dd.style.left=rect.left+'px';
+}
+document.addEventListener('click',function(e){
+  if(_suppressOrdClose){_suppressOrdClose=false;return;}
+  var btn=document.getElementById('ordDateBtn');
+  var dd=document.getElementById('ordDateDropdown');
+  var calO=document.getElementById('_customCalO');
+  if(ordDateDropdownOpen&&dd&&!dd.contains(e.target)&&e.target!==btn&&(!btn||!btn.contains(e.target))&&(!calO||!calO.contains(e.target))){
+    ordDateDropdownOpen=false;
+    dd.style.display='none';
+  }
+});
+
+function buildOrdMonthGrid(){
+  var grid=document.getElementById('ordMonthGrid');if(!grid)return;
+  grid.innerHTML='';
+  var now=new Date();
+  for(var i=0;i<12;i++){
+    var d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    var y=d.getFullYear();var m=String(d.getMonth()+1).padStart(2,'0');
+    var fromVal=(document.getElementById('ordDateFrom')||{}).value||'';
+    var toVal=(document.getElementById('ordDateTo')||{}).value||'';
+    var lastDay=new Date(y,parseInt(m),0).getDate();
+    var isSelected=(fromVal===y+'-'+m+'-'+'01'&&toVal===y+'-'+m+'-'+String(lastDay).padStart(2,'0'));
+    var btn=document.createElement('button');
+    btn.textContent=parseInt(m)+'月';
+    btn.className=isSelected?'month-btn month-btn-active':'month-btn';
+    btn.onmouseover=function(){if(!this.classList.contains('month-btn-active'))this.classList.add('month-btn-hover');};
+    btn.onmouseout=function(){if(!this.classList.contains('month-btn-active'))this.classList.remove('month-btn-hover');};
+    (function(yy,mm){btn.onclick=function(){pickOrdMonth(yy,mm);};})(y,m);
+    grid.appendChild(btn);
+  }
+}
+
+function pickOrdMonth(y,m){
+  var lastDay=new Date(y,parseInt(m),0).getDate();
+  document.getElementById('ordDateFrom').value=y+'-'+m+'-01';
+  document.getElementById('ordDateTo').value=y+'-'+m+'-'+String(lastDay).padStart(2,'0');
+  updateOrdDateBtnText();
+  document.getElementById('ordDateDropdown').style.display='none';
+  ordDateDropdownOpen=false;
+  loadOrders();
+}
+
+function updateOrdDateBtnText(){
+  var f=(document.getElementById('ordDateFrom')||{}).value||'';
+  var t=(document.getElementById('ordDateTo')||{}).value||'';
+  var txt=document.getElementById('ordDateBtnText');
+  var clearBtn=document.getElementById('ordClearDateBtn');
+  var fromBtn=document.getElementById('ordDateFromBtn');
+  var toBtn=document.getElementById('ordDateToBtn');
+  if(f||t){
+    if(f&&t){
+      var fd=f.slice(5);var td=t.slice(5);
+      fromBtn.textContent=fd;toBtn.textContent=td;
+      if(fd===td){txt.textContent=f.slice(0,7).replace('-','年')+'月';}
+      else{txt.textContent=fd+' ~ '+td;}
+    }else if(f){fromBtn.textContent=f.slice(5);toBtn.textContent='结束日期';txt.textContent=f.slice(5)+' 起';}
+    else{fromBtn.textContent='开始日期';toBtn.textContent=t.slice(5);txt.textContent='~ '+t.slice(5);}
+    if(clearBtn)clearBtn.style.display='';
+  }else{
+    if(txt)txt.textContent='选择日期';
+    if(clearBtn)clearBtn.style.display='none';
+    if(fromBtn)fromBtn.textContent='开始日期';
+    if(toBtn)toBtn.textContent='结束日期';
+  }
+}
+
+function clearOrdDateFilter(){
+  var elF=document.getElementById('ordDateFrom'),elT=document.getElementById('ordDateTo');
+  if(elF)elF.value='';if(elT)elT.value='';
+  updateOrdDateBtnText();buildOrdMonthGrid();loadOrders();
+}
+function onOrdCustomRange(){updateOrdDateBtnText();loadOrders();}
+
+// 订单 - 自定义日历（与客户页面一致，使用 addEventListener 绑定）
+let _datePickerTargetO=null;
+let _suppressOrdClose=false;
+
+function pickDateFromO(){
+  _datePickerTargetO='from';
+  showCustomDatePickerO((document.getElementById('ordDateFrom')||{}).value||'');
+}
+function pickDateToO(){
+  _datePickerTargetO='to';
+  showCustomDatePickerO((document.getElementById('ordDateTo')||{}).value||'');
+}
+
+function showCustomDatePickerO(initialVal){
+  var container=document.getElementById('ordCalendarContainer');
+  if(!container)return;
+  container.innerHTML='';
+
+  var _light=isLightMode();
+  var todayStr=(new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')+'-'+String(new Date().getDate()).padStart(2,'0'));
+  var todayObj=new Date(todayStr+'T00:00:00');
+  var hoverDs=null;
+  console.log('[CAL-DEBUG-O] todayStr='+todayStr+', todayObj='+todayObj.toISOString());
+  window._calTodayStrO=todayStr;
+
+  var now=initialVal?new Date(initialVal+'T00:00:00'):new Date();
+  var y=now.getFullYear(),m=now.getMonth(),d=now.getDate();
+
+  function render(){
+    const firstDay=new Date(y,m,1).getDay();
+    const daysInMonth=new Date(y,m+1,0).getDate();
+    const L=_light;
+
+    const fromVal = document.getElementById('ordDateFrom').value || '';
+    const toVal   = document.getElementById('ordDateTo').value   || '';
+
+    let h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
+    h+='<button type="button" onclick="event.stopPropagation();_calNavO(-1)" class="cal-nav-btn">&#8249;</button>';
+    h+='<span style="font-weight:600;font-size:14px;color:'+(L?'#1e293b':'#f1f5f9')+';">'+y+'年'+String(m+1).padStart(2,'0')+'月</span>';
+    h+='<button type="button" onclick="event.stopPropagation();_calNavO(1)" class="cal-nav-btn">&#8250;</button>';
+    h+='</div>';
+
+    // 星期头
+    h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;margin-bottom:6px;">';
+    ['一','二','三','四','五','六','日'].forEach(function(w){
+      h+='<span class="cal-weekday">'+w+'</span>';
+    });
+    h+='</div>';
+
+    // 日期格子
+    h+='<div id="_calGridO" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;">';
+
+    const startOffset=(firstDay+6)%7;
+    for(let i=0;i<startOffset;i++)h+='<span></span>';
+
+    // 预览区间
+    var previewFrom=fromVal, previewTo=toVal;
+    if(_datePickerTargetO==='to'&&fromVal&&hoverDs){
+      if(hoverDs>=fromVal) previewTo=hoverDs;
+      else{previewFrom=hoverDs;previewTo=fromVal;}
+    } else if(_datePickerTargetO==='from'&&toVal&&hoverDs){
+      if(hoverDs<=toVal) previewFrom=hoverDs;
+      else{previewFrom=toVal;previewTo=hoverDs;}
+    }
+
+    for(let day=1;day<=daysInMonth;day++){
+      const ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+      const isToday=ds===todayStr;
+
+      var rangeClass='';
+      if(previewFrom&&previewTo){
+        if(ds===previewFrom&&ds===previewTo) rangeClass='cal-day-from cal-day-to';
+        else if(ds===previewFrom) rangeClass='cal-day-from';
+        else if(ds===previewTo) rangeClass='cal-day-to';
+        else if(ds>previewFrom&&ds<previewTo) rangeClass='cal-day-range';
+      } else if(previewFrom&&ds===previewFrom){
+        rangeClass='cal-day-from cal-day-to';
+      } else if(previewTo&&ds===previewTo){
+        rangeClass='cal-day-from cal-day-to';
+      }
+
+      let cls='cal-day';
+      if(rangeClass) cls+=' '+rangeClass;
+      else if(isToday) cls+=' cal-day-today';
+
+      // 禁用逻辑
+      let disabled=false;
+      const thisDate=new Date(ds+'T00:00:00');
+      if(thisDate>todayObj) disabled=true;
+      else if(_datePickerTargetO==='from'&&toVal){
+        if(thisDate>new Date(toVal+'T23:59:59')) disabled=true;
+      }else if(_datePickerTargetO==='to'&&fromVal){
+        if(thisDate<new Date(fromVal+'T00:00:00')) disabled=true;
+      }
+
+      if(disabled){
+        h+='<span class="cal-day" style="opacity:.22;cursor:not-allowed;color:'+(L?'#cbd5e1':'#475569')+'">'+day+'</span>';
+      }else{
+        h+='<button type="button" data-cal-date="'+ds+'" class="'+cls+'" style="padding:5px 2px;">'+day+'</button>';
+      }
+    }
+    h+='</div>';
+
+    // 底部操作栏
+    h+='<div style="display:flex;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid '+(L?'rgba(148,163,184,.15)':'rgba(148,163,184,.08)')+';">';
+    h+='<button type="button" onclick="event.stopPropagation();_calClearO()" class="cal-action-btn cal-btn-clear">清除</button>';
+    h+='<button type="button" onclick="event.stopPropagation();_calLast7O()" class="cal-action-btn cal-btn-last7">过去7天</button>';
+    h+='<button type="button" onclick="event.stopPropagation();_calTodayO()" class="cal-action-btn cal-btn-today">今天</button>';
+    h+='</div>';
+
+    container.innerHTML=h;
+
+    // 用 addEventListener 绑定事件（关键！不使用内联 onclick）
+    container.querySelectorAll('button[data-cal-date]').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var ds=this.getAttribute('data-cal-date');
+        var parts=ds.split('-');
+        _calPickO(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), e);
+      });
+      btn.addEventListener('mouseenter', function(){
+        _calHoverO(this.getAttribute('data-cal-date'));
+      });
+      btn.addEventListener('mouseleave', function(){
+        _calHoverO(null);
+      });
+    });
+  }
+
+  window._calNavO=function(dir){
+    m+=dir;if(m<0){m=11;y--;}if(m>11){m=0;y++;}
+    render();
+  };
+
+  window._calHoverO=function(ds){
+    hoverDs=ds;  // 不调 render()，避免 DOM 重建导致点击失效
+  };
+
+  window._calPickO=function(py,pm,pd,ev){
+    if(ev)ev.stopPropagation();
+    var val=py+'-'+String(pm+1).padStart(2,'0')+'-'+String(pd).padStart(2,'0');
+    var picked=new Date(val+'T00:00:00');
+    if(picked>todayObj){showToast((_datePickerTargetO==='from'?'开始':'结束')+'日期不能超过今天','error');return;}
+    var fromV=document.getElementById('ordDateFrom').value||'';
+    var toV=document.getElementById('ordDateTo').value||'';
+    if(_datePickerTargetO==='from'&&toV&&picked>new Date(toV+'T23:59:59')){showToast('开始日期不能晚于结束日期','error');return;}
+    if(_datePickerTargetO==='to'&&fromV&&picked<new Date(fromV+'T00:00:00')){showToast('结束日期不能早于开始日期','error');return;}
+    if(_datePickerTargetO==='from'){
+      document.getElementById('ordDateFrom').value=val;
+      _datePickerTargetO='to';
+      updateOrdDateBtnText();
+      _suppressOrdClose=true;
+      hoverDs=null;
+      render();
+      return;
+    } else {
+      document.getElementById('ordDateTo').value=val;
+      container.innerHTML='';
+      var ddP=document.getElementById('ordDateDropdown');
+      if(ddP)ddP.style.display='none';
+      ordDateDropdownOpen=false;
+    }
+    updateOrdDateBtnText();loadOrders();
+  };
+  window._calClearO=function(){
+    document.getElementById('ordDateFrom').value='';
+    document.getElementById('ordDateTo').value='';
+    container.innerHTML='';
+    var ddC=document.getElementById('ordDateDropdown');
+    if(ddC)ddC.style.display='none';
+    ordDateDropdownOpen=false;
+    updateOrdDateBtnText();loadOrders();
+  };
+  window._calTodayO=function(){
+    document.getElementById('ordDateFrom').value=todayStr;
+    document.getElementById('ordDateTo').value=todayStr;
+    container.innerHTML='';
+    var ddT=document.getElementById('ordDateDropdown');
+    if(ddT)ddT.style.display='none';
+    ordDateDropdownOpen=false;
+    updateOrdDateBtnText();loadOrders();
+  };
+  window._calLast7O=function(){
+    var today=new Date();
+    var weekAgo=new Date(today);weekAgo.setDate(today.getDate()-7);
+    var fv=(weekAgo.getFullYear()+'-'+String(weekAgo.getMonth()+1).padStart(2,'0')+'-'+String(weekAgo.getDate()).padStart(2,'0'));
+    var tv=(today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0'));
+    document.getElementById('ordDateFrom').value=fv;
+    document.getElementById('ordDateTo').value=tv;
+    container.innerHTML='';
+    var ddL7=document.getElementById('ordDateDropdown');
+    if(ddL7)ddL7.style.display='none';
+    ordDateDropdownOpen=false;
+    updateOrdDateBtnText();loadOrders();
+  };
+
+  render();
+}
+
+// ============================================================
+// 订单管理 - 排序功能
+// ============================================================
+let ordSortDir='desc';
+function toggleOrdSort(){
+  var btn=document.getElementById('ordSortBtn');
+  var txt=document.getElementById('ordSortText');
+  var arrow=document.getElementById('ordSortArrow');
+  var hid=document.getElementById('ordSortVal');
+  if(ordSortDir==='desc'){
+    ordSortDir='asc';
+    if(txt)txt.textContent='时间 ↑ 升序';
+    if(arrow)arrow.textContent='▲';
+    if(hid)hid.value='asc';
+  }else{
+    ordSortDir='desc';
+    if(txt)txt.textContent='时间 ↓ 降序';
+    if(arrow)arrow.textContent='▼';
+    if(hid)hid.value='desc';
+  }
+  loadOrders();
+}
+
+
+// 全部客户 - 自定义日历
+let _datePickerTargetA=null;
+let _suppressAllClose=false;
+function pickDateFromA(){
+  _datePickerTargetA='from';
+  showCustomDatePickerA(document.getElementById('allDateFrom').value);
+}
+function pickDateToA(){
+  _datePickerTargetA='to';
+  showCustomDatePickerA(document.getElementById('allDateTo').value);
+}
+
+function showCustomDatePickerA(initialVal){
+  var containerA=document.getElementById('allCalendarContainer');
+  if(!containerA) return;
+  containerA.innerHTML='';
+
+  var _light=isLightMode();
+  var _bg=_light?'#fff':'#0f172a';
+  var _bdc=_light?'rgba(148,163,184,.25)':'rgba(148,163,184,.15)';
+  var _tc=_light?'#334155':'#e2e8f0';
+
+  var todayStr=(new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')+'-'+String(new Date().getDate()).padStart(2,'0'));
+  var todayObj=new Date(todayStr+'T00:00:00');
+  var now=initialVal?new Date(initialVal+'T00:00:00'):new Date();
+  var y=now.getFullYear(),m=now.getMonth(),d=now.getDate();
+
+  var hoverDsA=null;
+
+  function render(){
+    const firstDay=new Date(y,m,1).getDay();
+    const daysInMonth=new Date(y,m+1,0).getDate();
+    const L=_light;
+
+    const fromVal = document.getElementById('allDateFrom').value || '';
+    const toVal   = document.getElementById('allDateTo').value   || '';
+
+    let h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
+    h+='<button type="button" onclick="event.stopPropagation();_calNavA(-1)" class="cal-nav-btn">‹</button>';
+    h+='<span style="font-weight:600;font-size:14px;color:'+(L?'#1e293b':'#f1f5f9')+';">'+y+'年'+String(m+1).padStart(2,'0')+'月</span>';
+    h+='<button type="button" onclick="event.stopPropagation();_calNavA(1)" class="cal-nav-btn">›</button>';
+    h+='</div>';
+
+    h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;margin-bottom:6px;">';
+    ['一','二','三','四','五','六','日'].forEach(w=>{h+='<span class="cal-weekday">'+w+'</span>';});
+    h+='</div>';
+
+    h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;">';
+    const startOffset=(firstDay+6)%7;
+    for(let i=0;i<startOffset;i++)h+='<span></span>';
+
+    // 预览区间
+    var previewFrom=fromVal, previewTo=toVal;
+    if(_datePickerTargetA==='to'&&fromVal&&hoverDsA){
+      if(hoverDsA>=fromVal) previewTo=hoverDsA;
+      else{previewFrom=hoverDsA;previewTo=fromVal;}
+    } else if(_datePickerTargetA==='from'&&toVal&&hoverDsA){
+      if(hoverDsA<=toVal) previewFrom=hoverDsA;
+      else{previewFrom=toVal;previewTo=hoverDsA;}
+    }
+
+    for(let day=1;day<=daysInMonth;day++){
+      const ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+      const isToday=ds===todayStr;
+
+      var rangeClass='';
+      if(previewFrom&&previewTo){
+        if(ds===previewFrom&&ds===previewTo) rangeClass='cal-day-from cal-day-to';
+        else if(ds===previewFrom) rangeClass='cal-day-from';
+        else if(ds===previewTo) rangeClass='cal-day-to';
+        else if(ds>previewFrom&&ds<previewTo) rangeClass='cal-day-range';
+      } else if(previewFrom&&ds===previewFrom){
+        rangeClass='cal-day-from cal-day-to';
+      } else if(previewTo&&ds===previewTo){
+        rangeClass='cal-day-from cal-day-to';
+      }
+
+      let cls='cal-day';
+      if(rangeClass) cls+=' '+rangeClass;
+      else if(isToday) cls+=' cal-day-today';
+
+      let disabled=false;
+      const thisDate=new Date(ds+'T00:00:00');
+      if(thisDate>todayObj) disabled=true;
+      else if(_datePickerTargetA==='from'&&toVal){
+        if(thisDate>new Date(toVal+'T23:59:59')) disabled=true;
+      }else if(_datePickerTargetA==='to'&&fromVal){
+        if(thisDate<new Date(fromVal+'T00:00:00')) disabled=true;
+      }
+
+      if(disabled){
+        h+='<span class="cal-day" style="opacity:.22;cursor:not-allowed;color:'+(L?'#cbd5e1':'#475569')+'">'+day+'</span>';
+      }else{
+        h+='<button type="button" data-cal-date="'+ds+'" class="'+cls+'" style="padding:5px 2px;">'+day+'</button>';
+      }
+    }
+    h+='</div>';
+
+    h+='<div style="display:flex;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid '+(L?'rgba(148,163,184,.15)':'rgba(148,163,184,.08)')+';">';
+    h+='<button type="button" onclick="event.stopPropagation();_calClearA()" class="cal-action-btn cal-btn-clear">清除</button>';
+    h+='<button type="button" onclick="event.stopPropagation();_calLast7A()" class="cal-action-btn cal-btn-last7">过去7天</button>';
+    h+='<button type="button" onclick="event.stopPropagation();_calTodayA()" class="cal-action-btn cal-btn-today">今天</button>';
+    h+='</div>';
+
+    containerA.innerHTML=h;
+
+    containerA.querySelectorAll('button[data-cal-date]').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var ds=this.getAttribute('data-cal-date');
+        var parts=ds.split('-');
+        _calPickA(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), e);
+      });
+      btn.addEventListener('mouseenter', function(){
+        _calHoverA(this.getAttribute('data-cal-date'));
+      });
+      btn.addEventListener('mouseleave', function(){
+        _calHoverA(null);
+      });
+    });
+  }
+
+  window._calYA=y;window._calMA=m;window._calDA=d;
+
+  // hover预览已禁用 - 防止render()导致按钮重建、点击事件丢失
+  window._calHoverA=function(ds){
+    hoverDsA=ds;
+    // 不调用 render()，避免 innerHTML 重建DOM导致点击失效
+  };
+  window._calNavA=function(dir){
+    m+=dir;if(m<0){m=11;y--;}if(m>11){m=0;y++;}
+    window._calYA=y;window._calMA=m;render();
+  };
+  window._calPickA=function(py,pm,pd,ev){
+    if(ev)ev.stopPropagation();
+    var val=py+'-'+String(pm+1).padStart(2,'0')+'-'+String(pd).padStart(2,'0');
+    var picked=new Date(val+'T00:00:00');
+    if(picked>todayObj){showToast((_datePickerTargetA==='from'?'开始':'结束')+'日期不能超过今天','error');return;}
+    var fv=document.getElementById('allDateFrom').value||'';
+    var tv=document.getElementById('allDateTo').value||'';
+    if(_datePickerTargetA==='from'&&tv&&picked>new Date(tv+'T23:59:59')){showToast('开始日期不能晚于结束日期','error');return;}
+    if(_datePickerTargetA==='to'&&fv&&picked<new Date(fv+'T00:00:00')){showToast('结束日期不能早于开始日期','error');return;}
+    if(_datePickerTargetA==='from'){
+      document.getElementById('allDateFrom').value=val;
+      _datePickerTargetA='to';
+      updateAllDateBtnText();
+      _suppressAllClose=true;
+      hoverDsA=null;
+      render();
+      return;
+    } else {
+      document.getElementById('allDateTo').value=val;
+      containerA.innerHTML='';
+      var dda=document.getElementById('allDateDropdown');
+      if(dda)dda.style.display='none';
+      allDateDropdownOpen=false;
+    }
+    updateAllDateBtnText();loadAllCustomers();
+  };
+  window._calClearA=function(){
+    document.getElementById('allDateFrom').value='';
+    document.getElementById('allDateTo').value='';
+    containerA.innerHTML='';
+    var ddca=document.getElementById('allDateDropdown');
+    if(ddca)ddca.style.display='none';
+    allDateDropdownOpen=false;
+    updateAllDateBtnText();loadAllCustomers();
+  };
+  window._calTodayA=function(){
+    document.getElementById('allDateFrom').value=todayStr;
+    document.getElementById('allDateTo').value=todayStr;
+    containerA.innerHTML='';
+    var ddta=document.getElementById('allDateDropdown');
+    if(ddta)ddta.style.display='none';
+    allDateDropdownOpen=false;
+    updateAllDateBtnText();loadAllCustomers();
+  };
+  window._calLast7A=function(){
+    var today=new Date();
+    var weekAgo=new Date(today);weekAgo.setDate(today.getDate()-7);
+    var fv=(weekAgo.getFullYear()+'-'+String(weekAgo.getMonth()+1).padStart(2,'0')+'-'+String(weekAgo.getDate()).padStart(2,'0'));
+    var tv=(today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0'));
+    document.getElementById('allDateFrom').value=fv;
+    document.getElementById('allDateTo').value=tv;
+    containerA.innerHTML='';
+    var dl7a=document.getElementById('allDateDropdown');
+    if(dl7a)dl7a.style.display='none';
+    allDateDropdownOpen=false;
+    updateAllDateBtnText();loadAllCustomers();
+  };
+
+  render();
+}
+
+// ============================================================
+// 管理员：销售业绩汇总
+// ============================================================
+function buildAdminMonthOptions(){
+  const sel=document.getElementById('adminSumMonthSelect');
+  if(!sel)return;
+  sel.innerHTML='<option value="">选择月份</option>';
+  const now=new Date();
+  for(let i=0;i<12;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,'0');
+    sel.innerHTML+=`<option value="${y}-${m}">${y}年${parseInt(m)}月</option>`;
+  }
+  // 默认选中当月
+  const cm=String(now.getMonth()+1).padStart(2,'0');
+  sel.value=`${now.getFullYear()}-${cm}`;
+}
+
+async function loadAdminSummary(){
+  const body=document.getElementById('adminSummaryBody');
+  const empty=document.getElementById('adminSummaryEmpty');
+  if(!body)return;
+  const monthVal=document.getElementById('adminSumMonthSelect')?.value||'';
+  body.innerHTML='';
+  if(!monthVal){empty.style.display='';empty.textContent='请先选择月份';return;}
+  empty.style.display='none';
+  body.innerHTML='<tr><td colspan="3" style="padding:16px;text-align:center;color:#64748b;"><span class="spinner"></span>加载中...</td></tr>';
+  try{
+    const[y,m]=monthVal.split('-');
+    const from=`${y}-${m}-01T00:00:00`;
+    const lastDay=new Date(y,parseInt(m),0).getDate();
+    const to=`${y}-${m}-${String(lastDay).padStart(2,'0')}T23:59:59`;
+    const{data,error}=await supabaseClient.from('customers').select('*')
+      .gte('created_at',from).lte('created_at',to);
+    if(error)throw error;
+    const map={};
+    let total=0;
+    for(const c of (data||[])){
+      const name=c.owner_name||'未知';
+      map[name]=(map[name]||0)+1;
+      total++;
+    }
+    const sorted=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+    if(sorted.length===0){
+      empty.style.display='';empty.textContent='该月暂无录入数据';body.innerHTML='';return;
+    }
+
+    body.innerHTML=sorted.map(([name,count])=>{
+      const pct=total>0?((count/total)*100).toFixed(1):'0.0';
+      return `<tr class="admin-row"><td style="padding:10px 14px;font-weight:500;" class="admin-name">${escHtml(name)}</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:15px;" class="admin-num">${count}</td><td style="padding:10px 14px;text-align:right;" class="admin-pct">${pct}%</td></tr>`;
+    }).join('');
+    body.innerHTML+=`<tr class="admin-row admin-row-sum"><td style="padding:10px 14px;font-weight:700;" class="admin-name">合计</td><td style="padding:10px 14px;text-align:right;font-weight:800;font-size:16px;" class="admin-num">${total}</td><td style="padding:10px 14px;text-align:right;font-weight:600;" class="admin-pct">100%</td></tr>`;
+  }catch(err){body.innerHTML=`<tr><td colspan="3" style="padding:16px;text-align:center;color:#ef4444;">${escHtml(err.message||err)}</td></tr>`;}
+}
+
+
+
+// ============================================================
+// 全部客户
+// ============================================================
+async function loadAllCustomers(){
+  const c=document.getElementById('allCustomersList');
+  if(!supabaseClient){c.innerHTML='<div class="empty-state"><div class="icon">&#9888;</div>未连接</div>';return;}
+  const sortVal=document.getElementById('allSortVal')?document.getElementById('allSortVal').value:'desc';
+  const ascending=sortVal==='asc';
+  const kwRaw=document.getElementById('allSearchInput')?document.getElementById('allSearchInput').value.trim():'';
+  const kwClean = cleanPhone(kwRaw);
+  // 日期筛选
+  const dateFrom = document.getElementById('allDateFrom')?.value || '';
+  const dateTo   = document.getElementById('allDateTo')?.value || '';
+  c.innerHTML='<div class="loading"><span class="spinner"></span>加载中...</div>';
+  try{
+    let q=supabaseClient.from('customers').select('*', {count:'exact'});
+
+    if(kwRaw){
+      let filters=[];
+      if(kwRaw) filters.push(`owner_name.ilike.%${kwRaw}%`);
+      if(kwClean) filters.push(`phone.ilike.%${kwClean}%`);
+      // 也搜国家名
+      const matchedCountries = COUNTRY_CODES.filter(cc => cc.country.toLowerCase().includes(kwRaw.toLowerCase()));
+      for(const mc of matchedCountries){
+        const prefix = mc.code.replace('+', '');
+        filters.push(`phone.like.${prefix}%`);
+      }
+      if(filters.length > 0) q=q.or(filters.join(','));
+    }
+    if(dateFrom)q=q.gte('created_at',dateFrom+'T00:00:00+08:00');
+    if(dateTo)q=q.lte('created_at',dateTo+'T23:59:59+08:00');
+
+    const startIdx=(allPage-1)*PAGE_SIZE;
+    const{data,count:cTotal,error}=await q.order('created_at',{ascending:ascending}).range(startIdx,startIdx+PAGE_SIZE-1);
+    if(error) throw error;
+    allTotalCount=cTotal||0;
+    if(!data||!data.length){
+      if(allPage>1){allPage=1;loadAllCustomers();return;}
+      c.innerHTML='<div class="empty-state"><div class="icon">&#128203;</div>暂无记录</div>';return;
+    }
+    c.innerHTML=renderTable(data,false)+buildPagination('all',allPage,Math.ceil(allTotalCount/PAGE_SIZE),allTotalCount);
+  applyOwnerBadgeColors();
+  }catch(err){c.innerHTML=`<div class="empty-state"><div class="icon">&#10060;</div>${escHtml(err.message||err)}</div>`;}
+}
+
+// ============================================================
+function renderTable(data,isMine=false){
+  const showOp = isAdmin() && !isMine; // 仅超管在全部客户页显示操作列
+  const rows=data.map((c,i)=>{
+    const country = detectCountry(c.phone);
+    const countryTag = country ? `<span class="country-tag" title="${escHtml(country.country)}" style="background:${getCountryColor(country.code)}20;color:${getCountryColor(country.code)}">${country.country.split(' ')[0]}</span>` : '';
+
+    // 尝试次数
+    const cnt = c.attempt_count || 1;
+    let attemptCell = '';
+    if(cnt > 1){
+      attemptCell = `<td style="color:#fbbf24;font-weight:700;font-size:13px;">🔄 ${cnt} 次</td>`;
+    } else {
+      attemptCell = `<td style="color:#64748b;">-</td>`;
+    }
+
+    return `
+    <tr>
+      <td>${i+1}</td>
+      <td><strong style="font-size:14px;letter-spacing:.5px">${formatPhoneDisplay(c.phone)}</strong>${countryTag}</td>
+      <td><span class="${c.owner_name===currentUser.name?'owner-me':'owner-badge'}">${escHtml(c.owner_name)}</span></td>
+      <td>${formatTime(c.created_at)}</td>
+      ${attemptCell}
+      ${showOp ? `<td><button class="btn btn-sm btn-danger" onclick="deleteCustomer(${c.id})">删除</button></td>` : ''}
+    </tr>`;
+  }).join('');
+
+  // 列宽分配（百分比）：#4% | 手机号32% | 销售12% | 时间22% | 重复8% | [操作?%]
+  const opW = showOp ? '10%' : '0';
+  return `
+    <div class="table-wrap">
+      <table class="customer-table" style="table-layout:fixed;width:100%;">
+        <colgroup>
+          <col style="width:4%">
+          <col style="width:34%">
+          <col style="width:12%">
+          <col style="width:22%">
+          <col style="width:${showOp?'8%':'10%'}">
+          ${showOp?'<col style="width:10%">':''}
+        </colgroup>
+        <thead><tr><th>#</th><th>手机号</th><th>归属销售</th><th>录入时间</th><th>重复次数</th>${showOp?'<th>操作</th>':''}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+// 分页组件
+function buildPagination(prefix, page, totalPages, totalCount){
+  if(totalPages<=1) return '<div style="text-align:right;color:#64748b;font-size:12px;margin-top:10px;">共 ' + totalCount + ' 条</div>';
+  let h='<div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(148,163,184,.08);">';
+  h+='<span style="color:#64748b;font-size:12px;margin-right:4px;">共 ' + totalCount + ' 条 · 第 ' + page + '/' + totalPages + ' 页</span>';
+  if(page>1) h+='<button onclick="'+(prefix==='my'?'goMyPage':'goAllPage')+'('+(page-1)+')" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(148,163,184,.2);background:transparent;color:#94a3b8;font-size:12px;cursor:pointer;">‹ 上一页</button>';
+  // 页码
+  var start=Math.max(1,page-2);
+  var end=Math.min(totalPages,page+2);
+  if(start>1) h+='<span style="color:#475569;font-size:12px;padding:2px 4px;">...</span>';
+  for(var i=start;i<=end;i++){
+    var active=i===page;
+    h+='<button onclick="'+(prefix==='my'?'goMyPage':'goAllPage')+'('+i+')" style="padding:4px 10px;border-radius:5px;border:'+ (active ?'none':'1px solid rgba(148,163,184,.15)') + ';'+ (active ?'background:#6366f1;color:#fff;font-weight:600;' :'background:transparent;color:#94a3b8;font-size:12px;cursor:pointer;') +'">'+i+'</button>';
+  }
+  if(end<totalPages) h+='<span style="color:#475569;font-size:12px;padding:2px 4px;">...</span>';
+  if(page<totalPages) h+='<button onclick="'+(prefix==='my'?'goMyPage':'goAllPage')+'('+(page+1)+')" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(148,163,184,.2);background:transparent;color:#94a3b8;font-size:12px;cursor:pointer;">下一页 ›</button>';
+  h+='</div>';
+  return h;
+}
+
+/** 给不同国家分配不同颜色 */
+function getCountryColor(code) {
+  const colors = {
+    '+44': '#ef4444',   // 英国 - 红
+    '+33': '#3b82f6',   // 法国 - 蓝
+    '+49': '#fbbf24',   // 德国 - 黄
+    '+39': '#22c55e',   // 意大利 - 绿
+    '+34': '#f97316',   // 西班牙 - 橙
+    '+31': '#a855f7',   // 荷兰 - 紫
+    '+46': '#06b6d4',   //瑞典 - 青
+    '+41': '#ec4899',   // 瑞士 - 粉
+    '+43': '#84cc16',   // 奥典 - 黄绿
+    '+351': '#f97316',  // 葡萄牙 - 橙
+    '+32': '#6366f1',   // 比利时 - 靛蓝
+    '+48': '#f43f5e',   // 波兰 - 玫瑰
+    '+86': '#ef4444',   // 中国 - 红
+    '+81': '#fbbf24',   // 日本 - 黄
+    '+82': '#3b82f6',   // 韩国 - 蓝
+    '+65': '#ef4444',   // 新加坡 - 红
+    '+61': '#fbbf24',   // 澳大利亚 - 金黄
+    '+55': '#22c55e',   // 巴西 - 绿
+  };
+  return colors[code] || '#818cf8';
+}
+
+async function deleteCustomer(id){
+  if(!isAdmin()){showToast('仅管理员可删除客户','error');return;}
+  if(!confirm('确定删除？'))return;
+  try{
+    const{error}=await supabaseClient.from('customers').delete().eq('id',id);
+    if(error)throw error;
+    showToast('已删除','success');loadMyCustomers();loadDashboardStats();
+  }catch(err){showToast('删除失败：'+(err.message||err),'error');}
+}
+
+// ============================================================
+// 工具函数
+// ============================================================
+function escHtml(str){if(str==null)return'-';const d=document.createElement('div');d.textContent=String(str);return d.innerHTML;}
+function formatTime(s){if(!s)return'-';const d=new Date(s),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;}
+
+// ============================================================
+// 批量导入
+// ============================================================
+let batchQueue = [];          // 待处理的清洗后号码列表
+let batchStats = { ok: 0, dup: 0, fail: 0 };
+let batchRunning = false;
+
+/** 输入变化时实时检测号码数量 */
+function onBatchInputChange(){
+  const raw=document.getElementById('batchInput').value;
+  const phones=parseBatchRaw(raw);
+  document.getElementById('batchDetectedCount').textContent=phones.length;
+  if(phones.length>0){
+    // 显示前几个预览
+    const preview=phones.slice(0,3).map(p=>{
+      const c=detectCountry(p);return c?`${formatPhoneDisplay(p)} (${c.country.split(' ')[0]})`:p;
+    });
+    const hint=preview.join(' / ');
+    document.getElementById('batchPreviewHint').innerHTML=`预览：${escHtml(hint)}`;
+  } else {
+    document.getElementById('batchPreviewHint').innerHTML='';
+  }
+}
+
+/** 解析原始文本为手机号数组 */
+function parseBatchRaw(raw){
+  if(!raw.trim()) return [];
+  // 按换行 → 分号 → 逗号 → 多空格 分割
+  let parts = raw
+    .split(/[\n\r]+/)
+    .map(line=>line.split(/[;,]/))
+    .flat()
+    .map(s=>s.trim())
+    .filter(Boolean);
+  
+  // 再按空格拆分（处理空格分隔的情况）
+  let result=[];
+  for(const p of parts){
+    // 如果这一段包含多个看起来像号码的部分，尝试进一步拆分
+    if(/\s+/.test(p)){
+      subParts=p.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/\d{4,}/.test(s));
+      result.push(...subParts);
+    } else {
+      result.push(p);
+    }
+  }
+  
+  // 清洗并去重
+  const cleaned=[];
+  const seen=new Set();
+  for(const r of result){
+    const c=cleanPhone(r);
+    if(c && c.length>=4 && !seen.has(c)){
+      seen.add(c);
+      cleaned.push(c);
+    }
+  }
+  return cleaned;
+}
+
+/** 第一步：解析并预览 */
+function prepareBatchImport(){
+  const raw=document.getElementById('batchInput').value;
+  batchQueue=parseBatchRaw(raw);
+  if(batchQueue.length===0){
+    showToast('没有检测到有效的手机号','error');return;
+  }
+
+  // 重置状态
+  batchStats={ok:0,dup:0,fail:0};
+  batchRunning=false;
+  updateBatchUI();
+
+  // 切换到进度面板
+  document.getElementById('batchInputCard').style.display='none';
+  document.getElementById('batchProgressCard').style.display='block';
+  document.getElementById('btnStartBatch').disabled=false;
+  document.getElementById('batchLogArea').innerHTML='';
+  document.getElementById('batchProgressText').textContent=`0 / ${batchQueue.length}`;
+
+  // 显示预览日志
+  addBatchLog(`准备就绪，共 ${batchQueue.length} 个号码待处理。`,'ok');
+}
+
+/** 第二步：开始批量导入 */
+async function startBatchImport(){
+  if(batchRunning) return;
+  batchRunning=true;
+  document.getElementById('btnStartBatch').disabled=true;
+  const skipDups=document.getElementById('batchSkipDups').checked;
+  const total=batchQueue.length;
+
+  for(let i=0;i<total;i++){
+    if(!batchRunning) break;  // 可被中断
+
+    const phone=batchQueue[i];
+    
+    try{
+      // 查重
+      const{data:dup}=await supabaseClient.from('customers').select('*').eq('phone',phone);
+      
+      if(dup&&dup.length>0){
+        // 重复 → attempt_count +1
+        await supabaseClient.from('customers')
+          .update({ attempt_count: (dup[0].attempt_count || 0) + 1, updated_at: _cnISO() })
+          .eq('id', dup[0].id);
+        batchStats.dup++;
+        addBatchLog(`⚠️ [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 已存在（${dup[0].owner_name}），已计数并跳过`,'dup');
+      } else {
+        // 写入
+        const{error}=await supabaseClient.from('customers').insert([{
+          phone,
+          owner_name:currentUser.name,
+          owner_uid:currentUser.uid,
+          created_at:_cnISO(),
+          updated_at:_cnISO()
+        }]);
+        
+        if(error){
+          if(error.code==='23505'||(error.message&&error.message.includes('unique'))){
+            batchStats.dup++;
+            addBatchLog(`⚠️ [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 已存在（唯一约束），跳过`,'dup');
+          } else {
+            batchStats.fail++;
+            addBatchLog(`❌ [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 写入失败：${error.message||JSON.stringify(error)}`,'err');
+          }
+        } else {
+          batchStats.ok++;
+          const country=detectCountry(phone);
+          addBatchLog(`✅ [${i+1}/${total}] ${formatPhoneDisplay(phone)}${country?' ('+country.country+')':''} 录入成功`,'ok');
+        }
+      }
+    } catch(err){
+      batchStats.fail++;
+      addBatchLog(`❌ [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 错误：${err.message||err}`,'err');
+    }
+
+    // 更新进度
+    const done=i+1;
+    const pct=Math.round(done/total*100);
+    document.getElementById('batchProgressText').textContent=`${done} / ${total}`;
+    document.getElementById('batchPercentText').textContent=`${pct}%`;
+    document.getElementById('batchProgressBar').style.width=pct+'%';
+    document.getElementById('batchSuccessCount').textContent=batchStats.ok;
+    document.getElementById('batchDupCount').textContent=batchStats.dup;
+    document.getElementById('batchFailCount').textContent=batchStats.fail;
+
+    // 稍微延迟避免请求过快
+    await sleep(80);
+
+    // 自动滚动到底部
+    const logArea=document.getElementById('batchLogArea');
+    logArea.scrollTop=logArea.scrollHeight;
+  }
+
+  batchRunning=false;
+  loadDashboardStats();
+
+  // 最终提示
+  addBatchLog(`\n🏁 完成！成功 ${batchStats.ok} | 跳过重复 ${batchStats.dup} | 失败 ${batchStats.fail}`,batchStats.fail>0?'err':'ok');
+
+  if(batchStats.fail===0){
+    showToast(`批量导入完成！✅${batchStats.ok} 条成功 · ⚠️${batchStats.dup} 条重复跳过`,'success');
+  } else {
+    showToast(`批量导入完成：✅${batchStats.ok} 成功 · ⚠️${batchStats.dup} 跳过 · ❌${batchStats.fail} 失败`,'error');
+  }
+}
+
+function resetBatchImport(){
+  batchRunning=false;
+  batchQueue=[];
+  batchStats={ok:0,dup:0,fail:0};
+  document.getElementById('batchInputCard').style.display='block';
+  document.getElementById('batchProgressCard').style.display='none';
+  document.getElementById('batchInput').value='';
+  document.getElementById('batchDetectedCount').textContent='0';
+  document.getElementById('batchPreviewHint').innerHTML='';
+  updateBatchUI();
+}
+
+function updateBatchUI(){
+  document.getElementById('batchSuccessCount').textContent=batchStats.ok||'0';
+  document.getElementById('batchDupCount').textContent=batchStats.dup||'0';
+  document.getElementById('batchFailCount').textContent=batchStats.fail||'0';
+  document.getElementById('batchProgressText').textContent='0 / 0';
+  document.getElementById('batchPercentText').textContent='0%';
+  document.getElementById('batchProgressBar').style.width='0%';
+}
+
+function addBatchLog(msg,type){
+  const el=document.createElement('div');
+  el.className=`batch-log-${type||'ok'}`;
+  el.textContent=msg;
+  document.getElementById('batchLogArea').appendChild(el);
+}
+
+function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+
+// ============================================================
+// 个人设置：改名 + 同步数据库
+// ============================================================
+function loadProfile(){
+  var el1=document.getElementById('profileCurrentName');
+  if(el1) el1.value = currentUser.name || '';
+  document.getElementById('profileNewName').value = '';
+}
+
+async function saveProfileName(){
+  const newName = document.getElementById('profileNewName').value.trim();
+  if(!newName){showToast('请输入新名称','error');return;}
+  if(newName === currentUser.name){showToast('名称未变化','error');return;}
+
+  if(!confirm(`确定将「${currentUser.name}」改为「${newName}」？\n\n改名后，你所有已录入客户的归属显示都会同步更新。`)){
+    return;
+  }
+
+  try{
+    // 1. 更新 customers 表中该 uid 的所有 owner_name
+    const { data: updated, error: updateError } = await supabaseClient
+      .from('customers')
+      .update({ owner_name: newName, updated_at: _cnISO() })
+      .eq('owner_uid', currentUser.uid)
+      .select('id');
+
+    if(updateError) throw updateError;
+
+    // 2. 同步更新 members 表的 name
+    const { error: memErr } = await supabaseClient
+      .from('members')
+      .update({ name: newName })
+      .eq('uid', currentUser.uid);
+    if(memErr) console.warn('members 表名称同步失败（可能成员不存在）:', memErr);
+
+    // 3. 更新本地存储和内存
+    const oldName = currentUser.name;
+    currentUser.name = newName;
+    localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+
+    // 3. 更新侧边栏显示
+    document.getElementById('sidebarUserName').textContent = `当前用户：${newName} (${currentUser.uid})`;
+    document.getElementById('profileCurrentName').value = newName;
+    document.getElementById('profileNewName').value = '';
+
+    const count = updated ? updated.length : 0;
+    showToast(`✅ 名称已更新为「${newName}」，同步了 ${count} 条客户记录`, 'success');
+  } catch(err){
+    console.error('改名失败:', err);
+    showToast('改名失败：'+(err.message||JSON.stringify(err)), 'error');
+  }
+}
+
+// ============================================================
+// 修改密码（用户自己改）
+// ============================================================
+async function changePassword(){
+  const oldPwd = document.getElementById('profileOldPwd').value.trim();
+  const newPwd = document.getElementById('profileNewPwd').value.trim();
+  const confirmPwd = document.getElementById('profileConfirmPwd').value.trim();
+
+  if(!oldPwd){showToast('请输入当前密码','error');return;}
+  if(!newPwd){showToast('请输入新密码','error');return;}
+  if(newPwd.length < 3){showToast('新密码至少3个字符','error');return;}
+  if(newPwd !== confirmPwd){showToast('两次输入的新密码不一致','error');return;}
+
+  // 验证当前密码
+  if(oldPwd !== currentUser.uid){
+    showToast('当前密码不正确','error');
+    return;
+  }
+
+  if(!confirm(`确定将登录密码修改为「${newPwd}」？\n\n修改后将自动退出，需要用新密码重新登录。`)){
+    return;
+  }
+
+  try{
+    // 1. 更新 members 表的 uid 和 password
+    const { error: memErr } = await supabaseClient
+      .from('members')
+      .update({ uid: newPwd, password: newPwd })
+      .eq('uid', currentUser.uid);
+    if(memErr) throw memErr;
+
+    // 2. 同步 customers 表 owner_uid
+    const { data: updated, error } = await supabaseClient
+      .from('customers')
+      .update({ owner_uid: newPwd, updated_at: _cnISO() })
+      .eq('owner_uid', currentUser.uid)
+      .select('id');
+
+    if(error) throw error;
+
+    // 清除登录状态，强制重新登录
+    showToast(`✅ 密码已修改，请用新密码重新登录`, 'success');
+    setTimeout(() => { doLogout(); }, 1500);
+  } catch(err){
+    console.error('修改密码失败:', err);
+    showToast('修改密码失败：'+(err.message||JSON.stringify(err)), 'error');
+  }
+}
+
+// 归属销售 badge 颜色 - 每个姓名固定一种颜色（精确匹配）
+function getOwnerBadgeColor(name){
+  if(!name) return null;
+  var n=name.toUpperCase().trim();
+  // 已知成员固定配色
+  if(n==='ZHU')return{bg:'rgba(99,102,241,.14)',color:'#818cf8',border:'rgba(99,102,241,.2)'};
+  if(n==='ALI')return{bg:'rgba(16,185,129,.14)',color:'#34d399',border:'rgba(16,185,129,.2)'};
+  if(n==='ZY')return{bg:'rgba(245,158,11,.14)',color:'#fbbf24',border:'rgba(245,158,11,.2)'};
+  // 未知成员用 hash 分配备用色
+  var fallback=[
+    {bg:'rgba(236,72,153,.14)',color:'#f472b6',border:'rgba(236,72,153,.2)'},
+    {bg:'rgba(6,182,212,.14)',color:'#22d3ee',border:'rgba(6,182,212,.2)'},
+    {bg:'rgba(139,92,246,.14)',color:'#a78bfa',border:'rgba(139,92,246,.2)'},
+    {bg:'rgba(251,113,133,.14)',color:'#fb7185',border:'rgba(251,113,133,.2)'},
+    {bg:'rgba(132,204,22,.14)',color:'#84cc16',border:'rgba(132,204,22,.2)'},
+  ];
+  var h=0;
+  for(var i=0;i<n.length;i++){h=((h<<5)-h)+n.charCodeAt(i);h|=0;}
+  return fallback[Math.abs(h)%fallback.length];
+}
+/** 给页面内所有归属销售 badge 应用固定颜色 - 每个名字固定一种颜色 */
+function applyOwnerBadgeColors(){
+  var badges=document.querySelectorAll('.owner-badge, .owner-me');
+  badges.forEach(function(b){
+    var name=b.textContent.trim();
+    if(!name)return;
+    var c=getOwnerBadgeColor(name);
+    if(c){b.style.background=c.bg;b.style.color=c.color;b.style.borderColor=c.border;}
+  });
+}
+
+// ============================================================
+// ============================================================
+// 订单管理
+// ============================================================
+let ordPage=1;
+const ORD_PAGE_SIZE=50;
+let ordTotalCount=0;
+
+function resetOrderForm(){
+  document.getElementById('ordDate').value='';
+  document.getElementById('ordCustomerName').value='';
+  document.getElementById('ordPhone').value='';
+  document.getElementById('ordAddress').value='';
+  document.getElementById('ordProduct').value='';
+  document.getElementById('ordAmount').value='';
+  document.getElementById('ordRemark').value='';
+  document.getElementById('ordEditId').value='';
+  var title=document.querySelector('.order-form-title');
+  if(title)title.textContent='新建订单';
+}
+
+async function saveOrder(){
+  if(!supabaseClient)return showToast('数据库未连接','error');
+  const date=document.getElementById('ordDate').value||(new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')+'-'+String(new Date().getDate()).padStart(2,'0'));
+  const customerName=document.getElementById('ordCustomerName').value.trim();
+  const phone=document.getElementById('ordPhone').value.trim();
+  const address=document.getElementById('ordAddress').value.trim();
+  const product=document.getElementById('ordProduct').value.trim();
+  const amount=document.getElementById('ordAmount').value.trim();
+  const remark=document.getElementById('ordRemark').value.trim();
+  const editId=document.getElementById('ordEditId').value;
+
+  if(!customerName){showToast('请输入客户姓名','error');return;}
+  if(!phone){showToast('请输入联系方式','error');return;}
+  if(!product){showToast('请输入产品名','error');return;}
+  if(!amount){showToast('请输入总金额','error');return;}
+
+  const record={
+    date:date,
+    customer_name:customerName,
+    phone:phone,
+    address:address,
+    product:product,
+    amount:parseFloat(amount),
+    sales_name:currentUser.name,
+    owner_name:currentUser.name,
+    remark:remark,
+    status:'pending'
+  };
+
+  try{
+    let error;
+    if(editId){
+      ({error}=await supabaseClient.from('orders').update(record).eq('id',editId));
+    }else{
+      ({error}=await supabaseClient.from('orders').insert([record]));
+    }
+    if(error)throw error;
+    showToast(editId?'订单修改成功':'订单创建成功');
+    resetOrderForm();
+    loadOrders();
+  }catch(e){
+    showToast('保存失败: '+e.message,'error');
+  }
+}
+
+async function loadOrders(ordSearch){
+  if(!supabaseClient)return;
+  const container=document.getElementById('orderList');
+  container.innerHTML='<div style="text-align:center;padding:40px;color:#94a3b8;">加载中...</div>';
+
+  try{
+    let query=supabaseClient.from('orders').select('*',{count:'exact'});
+
+    // 管理员可看全部，普通成员只看自己的
+    if(!isManager()){
+      query=query.eq('owner_name',currentUser.name);
+    }
+
+    // 状态筛选
+    const sf=document.getElementById('ordStatusFilter');
+    if(sf&&sf.value)query=query.eq('status',sf.value);
+
+    // 关键词搜索
+    const kw=(ordSearch||document.getElementById('ordSearchInput')?.value||'').trim();
+    if(kw){
+      query=query.or('customer_name.ilike.%'+kw+'%,product.ilike.%'+kw+'%,owner_name.ilike.%'+kw+'%');
+    }
+
+    // 日期筛选
+    const ordDateFrom=document.getElementById('ordDateFrom')?.value||'';
+    const ordDateTo=document.getElementById('ordDateTo')?.value||'';
+    if(ordDateFrom)query=query.gte('date',ordDateFrom);
+    if(ordDateTo)query=query.lte('date',ordDateTo);
+
+    // 分页
+    var ordSortVal=(document.getElementById('ordSortVal')||{}).value||'desc';
+    query=query.range((ordPage-1)*ORD_PAGE_SIZE,ordPage*ORD_PAGE_SIZE-1).order('created_at',{ascending:(ordSortVal==='asc')});
+
+    const{data,error,count}=await query;
+
+    if(error)throw error;
+
+    ordTotalCount=count||0;
+    const totalAmount=(data||[]).reduce((s,o)=>s+(o.amount||0),0);
+
+    // 更新统计
+    var tcEl=document.getElementById('ordTotalCount'), taEl=document.getElementById('ordTotalAmount');
+    if(tcEl)tcEl.textContent=ordTotalCount;
+    if(taEl)taEl.textContent='¥'+totalAmount.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});
+
+    if(!data||data.length===0){
+      container.innerHTML='<div style="text-align:center;padding:40px;color:#94a3b8;">暂无订单数据</div>';
+      return;
+    }
+
+    const admin=isAdmin();
+    let h='<table class="ord-tbl" style="width:100%;border-collapse:collapse;"><thead><tr>'
+    +'<th class="ord-th" style="padding:10px 8px;text-align:left;font-size:12px;color:#94a3b8;">日期</th>'
+    +'<th class="ord-th" style="padding:10px 8px;text-align:left;font-size:12px;color:#94a3b8;">客户</th>'
+    +'<th class="ord-th" style="padding:10px 8px;text-align:left;font-size:12px;color:#94a3b8;">联系方式</th>'
+    +'<th class="ord-th" style="padding:10px 8px;text-align:left;font-size:12px;color:#94a3b8;">地址</th>'
+    +'<th class="ord-th" style="padding:10px 8px;text-align:left;font-size:12px;color:#94a3b8;">产品</th>'
+    +'<th class="ord-th" style="padding:10px 8px;text-align:right;font-size:12px;color:#94a3b8;">金额</th>'
+    +'<th class="ord-th" style="padding:10px 8px;text-align:left;font-size:12px;color:#94a3b8;">销售</th>'
+    
+    +(isAdmin() ? '<th class="ord-th" style="padding:10px 8px;text-align:center;font-size:12px;color:#94a3b8;">操作</th>' : '')+'</tr></thead><tbody>';
+
+    data.forEach(function(o){
+      const phoneDisplay=admin?o.phone:'•••••'+(o.phone||'').slice(-4);
+      const phoneTitle=admin?(o.phone||''):(o.phone||'');
+      h+='<tr style="border-bottom:1px solid rgba(148,163,184,.08);">'
+      +'<td class="ord-td" style="padding:10px 8px;font-size:13px;color:#e2e8f0;">'+escHtml(o.date)+'</td>'
+      +'<td class="ord-td" style="padding:10px 8px;font-size:13px;color:#e2e8f0;">'+escHtml(o.customer_name)+'</td>'
+      +'<td class="ord-td" style="padding:10px 8px;font-size:13px;color:#e2e8f0;" title="'+escHtml(phoneTitle)+'">'+escHtml(phoneDisplay)+(admin?'':'<span style="color:#94a3b8;font-size:11px;margin-left:4px;" title="仅管理员可查看完整号码">🔒</span>')+'</td>'
+      +'<td class="ord-td" style="padding:10px 8px;font-size:13px;color:#e2e8f0;max-width:200px;word-wrap:break-word;">'+escHtml(o.address||'-')+'</td>'
+      +'<td class="ord-td" style="padding:10px 8px;font-size:13px;color:#e2e8f0;max-width:200px;word-wrap:break-word;">'+escHtml(o.product)+'</td>'
+      +'<td class="ord-amount" style="padding:10px 8px;font-size:13px;color:#34d399;text-align:right;font-weight:600;">¥'+(o.amount||0).toLocaleString()+'</td>'
+      +'<td class="ord-muted" style="padding:10px 8px;font-size:13px;vertical-align:middle;">'+('<span class="owner-badge" style="padding:3px 10px;">'+escHtml(o.sales_name||'-')+'</span>')+'</td>'
+      + (isAdmin() ? '<td style="padding:10px 8px;text-align:center;">'
+        +'<button onclick="editOrder('+o.id+')" class="ord-edit-btn" style="padding:3px 8px;border-radius:5px;background:transparent;color:#818cf8;border:1px solid rgba(99,102,247,.3);cursor:pointer;font-size:11px;margin-right:4px;">编辑</button>'
+        +'<button onclick="deleteOrder('+o.id+')" class="ord-del-btn" style="padding:3px 8px;border-radius:5px;background:transparent;color:#f87171;border:1px solid rgba(248,113,113,.3);cursor:pointer;font-size:11px;">删除</button>'
+        +'</td>' : '')
+      + '</tr>';
+    });
+    h+='</tbody></table>';
+
+    // 分页
+    const totalPages=Math.ceil(ordTotalCount/ORD_PAGE_SIZE)||1;
+    if(totalPages>1){
+      h+='<div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid rgba(148,163,184,.08);">';
+      if(ordPage>1)h+='<button onclick="ordPage=1;loadOrders();" class="ord-page-btn" style="padding:5px 10px;border-radius:6px;background:transparent;color:#94a3b8;border:1px solid rgba(148,163,184,.2);cursor:pointer;font-size:12px;">首页</button>';
+      if(ordPage>1)h+='<button onclick="ordPage--;loadOrders();" class="ord-page-btn" style="padding:5px 10px;border-radius:6px;background:transparent;color:#94a3b8;border:1px solid rgba(148,163,184,.2);cursor:pointer;font-size:12px;">◀</button>';
+      h+='<span style="color:#94a3b8;font-size:12px;">第 '+ordPage+' / '+totalPages+' 页 (共 '+ordTotalCount+' 条)</span>';
+      if(ordPage<totalPages)h+='<button onclick="ordPage++;loadOrders();" class="ord-page-btn" style="padding:5px 10px;border-radius:6px;background:transparent;color:#94a3b8;border:1px solid rgba(148,163,184,.2);cursor:pointer;font-size:12px;">▶</button>';
+      if(ordPage<totalPages)h+='<button onclick="ordPage='+totalPages+';loadOrders();" class="ord-page-btn" style="padding:5px 10px;border-radius:6px;background:transparent;color:#94a3b8;border:1px solid rgba(148,163,184,.2);cursor:pointer;font-size:12px;">末页</button>';
+      h+='</div>';
+    }
+
+    container.innerHTML=h;
+    applyOwnerBadgeColors();  // 归属销售颜色
+
+    // 状态徽章样式注入
+    injectOrderStyles();
+
+  }catch(e){
+    container.innerHTML='<div style="text-align:center;padding:40px;color:#ef4444;">加载失败: '+e.message+'</div>';
+  }
+}
+
+function statusLabel(s){
+  return{'pending':'待付款','paid':'已付款','shipped':'已发货','completed':'已完成','cancelled':'已取消'}[s]||s;
+}
+
+async function updateOrderStatus(id){
+  if(!isAdmin()){showToast('仅管理员可修改状态','error');return;}
+  var next={'pending':'paid','paid':'shipped','shipped':'completed','completed':'cancelled','cancelled':'pending'};
+  var cur=document.querySelector('[data-id="'+id+'"]');
+  if(cur){
+    var s=cur.getAttribute('class').match(/ord-status-(\w+)/);
+    var ns=s?next[s[1]]:'pending';
+    try{
+      var{error}=await supabaseClient.from('orders').update({status:ns}).eq('id',id);
+      if(error)throw error;
+      loadOrders();
+    }catch(e){showToast('操作失败:'+e.message,'error');}
+  }
+}
+
+async function editOrder(id){
+  // 权限校验: 只有超管可以编辑任意订单, 其他角色只能编辑自己创建的
+  if(!supabaseClient)return showToast('数据库未连接','error');
+  var _ordData=null;
+  try{
+    var _res=await supabaseClient.from('orders').select('*').eq('id',id).single();
+    if(_res.error)throw _res.error;
+    _ordData=_res.data;
+  }catch(_e){
+    showToast('加载失败:'+_e.message,'error');return;
+  }
+  if(!_ordData){showToast('订单不存在','error');return;}
+  // 非超管且非本人订单 → 拒绝
+  if(currentUser.role!=='admin' && _ordData.owner_name!==currentUser.name){
+    showToast('您没有权限编辑此订单','error');
+    return;
+  }
+  // 通过校验，继续填充表单
+  try{
+    var data=_ordData;
+    document.getElementById('ordDate').value=data.date||'';
+    document.getElementById('ordCustomerName').value=data.customer_name||'';
+    document.getElementById('ordPhone').value=data.phone||'';
+    document.getElementById('ordAddress').value=data.address||'';
+    document.getElementById('ordProduct').value=data.product||'';
+    document.getElementById('ordAmount').value=data.amount||'';
+    document.getElementById('ordRemark').value=data.remark||'';
+    document.getElementById('ordEditId').value=id;
+    var t=document.querySelector('.order-form-title');if(t)t.textContent='编辑订单';
+    document.getElementById('secOrderManage').scrollIntoView({behavior:'smooth'});
+  }catch(e){showToast('加载失败:'+e.message,'error');}
+}
+async function deleteOrder(id){
+  // 只有超管可删除
+  if(!currentUser || currentUser.role !== 'admin'){
+    showToast('仅超级管理员可删除订单','error');return;
+  }
+  if(!confirm('确定删除此订单？此操作不可恢复！'))return;
+  try{
+    var{error}=await supabaseClient.from('orders').delete().eq('id',id);
+    if(error)throw error;
+    showToast('已删除');loadOrders();
+  }catch(e){showToast('删除失败:'+e.message,'error');}
+}
+
+function showOrderDetail(id){/* 预留详情弹窗 */}
+function closeOrderModal(){/* 预留关闭 */}
+
+function injectOrderStyles(){
+  if(document.getElementById('_orderStyles'))return;
+  var s=document.createElement('style');
+  s.id='_orderStyles';
+  s.innerHTML='.ord-status-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500;cursor:pointer;transition:all .2s}'
+  +'.ord-status-pending{background:rgba(251,191,36,.15);color:#fbbf24}'
+  +'.ord-status-paid{background:rgba(52,211,153,.15);color:#34d399}'
+  +'.ord-status-shipped{background:rgba(96,165,250,.15);color:#60a5fa}'
+  +'.ord-status-completed{background:rgba(74,222,128,.15);color:#4ade80}'
+  +'.ord-status-cancelled{background:rgba(156,163,175,.15);color:#9ca3af}'
+  +'body.light-mode .ord-status-pending{background:rgba(245,158,11,.1);color:#d97706}'
+  +'body.light-mode .ord-status-paid{background:rgba(5,150,105,.1);color:#059669}'
+  +'body.light-mode .ord-status-shipped{background:rgba(37,99,235,.1);color:#2563eb}'
+  +'body.light-mode .ord-status-completed{background:rgba(22,163,74,.1);color:#16a34a}'
+  +'body.light-mode .ord-status-cancelled{background:rgba(107,114,128,.1);color:#6b7280}';
+  document.head.appendChild(s);
+}
+
+// 日间模式订单区域样式适配
+var _orderLightCSS=document.createElement('style');
+_orderLightCSS.id='_orderLightCSS2';
+_orderLightCSS.innerHTML='body.light-mode .order-form-card{background:#f8fafc!important;border-color:#e2e8f0!important}'
++'body.light-mode .order-form-title{color:#1e293b!important}'
++'body.light-mode #ordSearchInput{--input-bg:#fff!important;--input-color:#1e293b!important}'
++'body.light-mode #ordDate,body.light-mode #ordCustomerName,body.light-mode #ordPhone,body.light-mode #ordAddress,body.light-mode #ordProduct,body.light-mode #ordAmount{background:#fff!important;border-color:#e2e8f0!important;color:#1e293b!important}'
++'body.light-mode #ordRemark{background:#fff!important;border-color:#e2e8f0!important;color:#334155!important}'
++'body.light-mode #ordStatusFilter{background:#fff!important;border-color:#e2e8f0!important;color:#1e293b!important}body.light-mode .ord-th{color:#4338ca!important;background:rgba(99,102,241,.06)!important}body.light-mode .ord-td{color:#334155!important}body.light-mode .ord-amount{color:#059669!important}body.light-mode .ord-muted{color:#64748b!important}body.light-mode .ord-edit-btn{color:#4338ca!important;border-color:rgba(99,102,241,.4)!important}body.light-mode .ord-del-btn{color:#dc2626!important;border-color:rgba(220,38,38,.35)!important}body.light-mode .ord-page-btn{color:#475569!important;border-color:#cbd5e1!important}body.light-mode .ord-page-btn:hover{background:rgba(99,102,241,.06)!important;color:#4338ca!important}body.light-mode .ord-stat-label{color:#64748b!important}body.light-mode .ord-stat-num{color:#4338ca!important}body.light-mode .ord-stat-amount{color:#059669!important}body.light-mode .ord-tbl tr{border-bottom-color:#f1f5f9!important}body.light-mode .ord-tbl tbody tr:hover{background:rgba(99,102,241,.03)!important}body.light-mode .ord-td span[style*="color:#94a3b8"]{color:#94a3b8!important}';
+document.head.appendChild(_orderLightCSS);
+
+// 成员管理（仅ADMIN）
+// ============================================================
+
+/** 判断是否为超级管理员（一级） */
+function isAdmin(){
+  return currentUser && currentUser.role === 'admin';
+}
+
+/** 判断是否为管理员（二级，含超级） */
+function isManager(){
+  return currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager');
+}
+
+/** 加载成员列表（从 members 表读取） */
+async function loadMemberList(){
+  const c = document.getElementById('memberList');
+  if(!supabaseClient){
+    c.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>未连接</div>'; return;
+  }
+
+  if(!isManager()){
+    c.innerHTML = '<div class="empty-state"><div class="icon">🔒</div>无权限访问</div>'; return;
+  }
+
+  c.innerHTML = '<div class="loading"><span class="spinner"></span>加载中...</div>';
+
+  try{
+    const{data:members,error}=await supabaseClient.from('members').select('*').order('created_at',{ascending:true});
+
+    if(error) throw error;
+
+    if(!members || members.length === 0){
+      c.innerHTML = '<div class="empty-state"><div class="icon">👥</div>暂无成员，点击上方「添加成员」按钮创建</div>'; return;
+    }
+
+    // 查询每个成员的客户数（按 owner_name 匹配，兼容旧数据 uid 不一致的情况）
+    const{data:custStats}=await supabaseClient.from('customers').select('owner_name');
+    const custCountMap = {};
+    if(custStats){
+      for(const r of custStats){
+        custCountMap[r.owner_name] = (custCountMap[r.owner_name]||0)+1;
+      }
+    }
+
+    const isLight = document.body.classList.contains('light-mode');
+    const isMeAdmin = isAdmin(); // 当前用户是否超级管理员
+    const rows = members.map((m,i) => {
+      const isMe = m.uid === currentUser.uid;
+      const nameColor = isMe ? '#d97706' : (isLight ? '#1e293b' : '#e2e8f0');
+      const pwdColor = isLight ? '#4338ca' : '#818cf8';
+      // 角色显示文字
+      let roleTag = '';
+      if(m.role === 'admin') roleTag = '<span style="font-size:11px;color:#ef4444;">(超管)</span>';
+      else if(m.role === 'manager') roleTag = '<span style="font-size:11px;color:#d97706;">(管理员)</span>';
+      // 操作列
+      let actionCell = '';
+      if(isMe){
+        actionCell = '<span style="color:#64748b;font-size:12px;">—</span>';
+      } else if(isAdmin()){
+        // 超级管理员：完整权限（角色选择 + 重置密码 + 删除）
+        // 超管不能改自己角色；其他人只能选 manager/member
+        let roleSelectForAdmin;
+        if(m.role === 'admin'){
+          // 该成员是超管 → 显示固定文字（不可改）
+          roleSelectForAdmin = '<span style="color:#ef4444;font-size:12px;">超管</span>';
+        } else {
+          // 非 admin 成员 → 显示下拉选择
+          roleSelectForAdmin = `<select onchange="switchMemberRole('${m.uid}','${escHtml(m.name)}',this.value,this)" class="role-select" data-current="${m.role}" style="padding:5px 8px;border-radius:6px;border:1px solid rgba(99,102,241,.35);background:rgba(99,102,241,.12);color:#c7d2fe;font-size:12px;outline:none;cursor:pointer;"><option value="manager" ${m.role==='manager'?'selected':''}>管理员</option><option value="member" ${m.role==='member'?'selected':''}>普通成员</option></select>`;
+        }
+        actionCell = `${roleSelectForAdmin} <button class="btn btn-sm btn-primary" onclick="resetMemberPwd('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;">重置密码</button><button class="btn btn-sm btn-danger" onclick="deleteMember('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;">删除</button>`;
+      } else {
+        // 二级管理员：只能看，不能操作
+        actionCell = '<span style="color:#64748b;font-size:12px;">—</span>';
+      }
+      return `
+      <tr>
+        <td>${i+1}</td>
+        <td><span class="owner-badge" data-name="${escHtml(m.name)}">${escHtml(m.name)}</span> ${roleTag} ${isMe ? '<span style="font-size:11px;color:#4338ca;">(我)</span>' : ''}</td>
+        <td style="color:${pwdColor};font-family:monospace;">••••••</td>
+        <td>${custCountMap[m.name] || 0} 条客户</td>
+        <td>${formatTime(m.created_at)}</td>
+        ${isAdmin() ? '<td>' + actionCell + '</td>' : ''}
+      </tr>`;
+    }).join('');
+
+    c.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>姓名</th><th>登录密码</th><th>客户数</th><th>加入时间</th>${isAdmin() ? '<th>操作</th>' : ''}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <p style="font-size:12px;color:#64748b;margin-top:10px;">共 ${members.length} 名成员 · 成员数据独立存储于 members 表</p>`;
+    applyOwnerBadgeColors();  // 成员列表归属销售颜色
+  } catch(err){
+    console.error('成员列表加载失败:', err);
+    c.innerHTML = `<div class="empty-state"><div class="icon">❌</div>${escHtml(err.message||err)}</div>`;
+  }
+}
+
+function showAddMemberForm(){ 
+  document.getElementById('addMemberForm').style.display='block';
+  const roleSelect = document.getElementById('addMemRole');
+  if(isAdmin()){
+    // 超管: 全部选项可见
+    document.getElementById('addMemRoleAdminOpt').style.display='';
+    var mgrOpt = document.getElementById('addMemRoleManagerOpt');
+    if(mgrOpt) mgrOpt.style.display='';
+  } else {
+    // 非超管(含管理员): 只能选普通成员，隐藏管理员和超级管理员
+    var adminOpt = document.getElementById('addMemRoleAdminOpt');
+    if(adminOpt) adminOpt.style.display='none';
+    var mgrOpt = document.getElementById('addMemRoleManagerOpt');
+    if(mgrOpt) mgrOpt.style.display='none';
+    roleSelect.value = 'member';
+  }
+}
+function hideAddMemberForm(){
+  document.getElementById('addMemberForm').style.display='none';
+  document.getElementById('addMemName').value='';
+  document.getElementById('addMemPwd').value='';
+  document.getElementById('addMemRole').value='member';
+}
+
+/** 添加新成员 */
+async function doAddMember(){
+  const name = document.getElementById('addMemName').value.trim();
+  const pwd = document.getElementById('addMemPwd').value.trim();
+  const role = document.getElementById('addMemRole').value;
+
+  if(!name){showToast('请输入姓名','error');return;}
+  if(!pwd){showToast('请输入初始密码','error');return;}
+  if(pwd.length < 3){showToast('密码至少3个字符','error');return;}
+
+  // 检查 name 是否已存在（用户名必须唯一）
+  const{data:exist}=await supabaseClient.from('members').select('uid').eq('name', name);
+  if(exist && exist.length > 0){
+    showToast('该用户名已被使用','error'); return;
+  }
+
+  try{
+    const{error}=await supabaseClient.from('members').insert({
+      uid: pwd,
+      name: name,
+      password: pwd,
+      role: role,
+      created_at: _cnISO()
+    });
+    if(error) throw error;
+
+    showToast(`✅ 成员「${name}」添加成功，初始密码：${pwd}`,'success');
+    hideAddMemberForm();
+    loadMemberList();
+  } catch(err){
+    console.error('添加成员失败:', err);
+    showToast('添加失败：'+(err.message||JSON.stringify(err)),'error');
+  }
+}
+
+/** 管理员删除成员 */
+async function deleteMember(memberUid, memberName){
+  if(!confirm(`⚠️ 确定删除成员「${memberName}」？\n\n删除后该成员无法再登录。\n其名下的客户数据不会被删除。`)){ return; }
+
+  try{
+    const{error}=await supabaseClient.from('members').delete().eq('uid', memberUid).eq('name', memberName);
+    if(error) throw error;
+    showToast(`✅ 成员「${memberName}」已删除`,'success');
+    loadMemberList();
+  } catch(err){
+    showToast('删除失败：'+(err.message||JSON.stringify(err)),'error');
+  }
+}
+
+/** 更改成员权限（通过下拉选择） */
+async function switchMemberRole(memberUid, memberName, newRole, selectEl){
+  if(!newRole) return;
+  const originalRole = selectEl ? selectEl.dataset.current : '';
+  console.log('[角色变更] 目标:', memberName, '(', memberUid, ')', '→', newRole, '(原:', originalRole, ')');
+  // 二级管理员不能将他人提升为 manager 或 admin
+  if(!isAdmin() && (newRole === 'admin' || newRole === 'manager')){
+    showToast('你没有此操作权限','error');
+    if(selectEl) selectEl.value = selectEl.dataset.current;
+    return;
+  }
+  // 不能把自己降级（保护当前登录用户）
+  if(memberUid === currentUser.uid && newRole !== currentUser.role){
+    showToast('不能修改自己的角色','error');
+    if(selectEl) selectEl.value = selectEl.dataset.current;
+    return;
+  }
+  const roleLabel = newRole === 'admin' ? '超级管理员' : (newRole === 'manager' ? '管理员' : '普通成员');
+  const action = `设为${roleLabel}`;
+  if(!confirm(`确定将「${memberName}」${action}？`)){ 
+    if(selectEl) selectEl.value = selectEl.dataset.current;
+    return; 
+  }
+  try{
+    // 同时用 uid + name 双重匹配，确保精确到目标成员（防止 uid 重复时误改多人）
+    const{data:updatedRows,error}=await supabaseClient.from('members')
+      .update({ role: newRole })
+      .eq('uid', memberUid)
+      .eq('name', memberName)
+      .select('uid,name,role');
+    if(error) throw error;
+    const affectedCount = updatedRows ? updatedRows.length : 0;
+    console.log('[角色变更] 影响行数:', affectedCount, updatedRows);
+    if(affectedCount !== 1){
+      showToast('⚠️ 预期更新1行，实际更新了'+affectedCount+'行，请检查数据唯一性','error');
+      loadMemberList();
+      return;
+    }
+    showToast(`✅「${memberName}」已${action}`,'success');
+    loadMemberList();
+  } catch(err){
+    if(selectEl) selectEl.value = selectEl.dataset.current;
+    showToast('权限更改失败：'+(err.message||JSON.stringify(err)),'error');
+  }
+}
+
+/** 修复工具：将指定成员的 role 重置为 member（一次性使用） */
+async function fixMemberRoles(){
+  if(!supabaseClient){ alert('未连接数据库'); return; }
+  try{
+    // 1. 查看当前所有成员
+    const{data:members}=await supabaseClient.from('members').select('uid,name,role').order('created_at',{ascending:true});
+    console.log('[修复] 当前成员列表:', members);
+    
+    // 2. 将非 admin、非指定保留 的成员全部重置为 member
+    const keepManager = ['ZHU']; // 需要保持 manager 的成员名单
+    const toFix = members.filter(m => m.role !== 'admin' && !keepManager.includes(m.name));
+    console.log('[修复] 将被重置为 member:', toFix.map(m=>m.name));
+    
+    for(const m of toFix){
+      await supabaseClient.from('members').update({role:'member'}).eq('uid',m.uid).eq('name',m.name);
+      console.log('[修复] ✅', m.name, '-> member');
+    }
+    
+    alert(`已将 ${toFix.length} 名成员重置为普通成员：\n${toFix.map(m=>m.name).join(', ')}`);
+    loadMemberList();
+  }catch(e){
+    console.error('[修复] 失败:', e);
+    alert('修复失败: '+e.message);
+  }
+}
+
+/** 管理员重置员工密码 */
+async function resetMemberPwd(memberUid, memberName){
+  const newPwd = prompt(`重置「${memberName}」的登录密码\n\n请输入新的密码（至少3个字符）：`);
+  if(!newPwd) return; // 取消
+  if(newPwd.length < 3){showToast('密码至少3个字符','error');return;}
+
+  if(!confirm(`确定将「${memberName}」的密码重置为「${newPwd}」？\n\n该员工需要用新密码重新登录。`)){
+    return;
+  }
+
+  try{
+    // 1. 更新 members 表
+    const{error:memErr}=await supabaseClient.from('members')
+      .update({ uid: newPwd, password: newPwd })
+      .eq('uid', memberUid)
+      .eq('name', memberName);
+    if(memErr) throw memErr;
+
+    // 2. 同步 customers 表 owner_uid
+    const{data:updated,error:custErr}=await supabaseClient.from('customers')
+      .update({ owner_uid: newPwd, updated_at: _cnISO() })
+      .eq('owner_uid', memberUid)
+      .select('id');
+
+    if(custErr) throw custErr;
+
+    const count = updated ? updated.length : 0;
+    showToast(`✅ 「${memberName}」的密码已重置，同步更新了 ${count} 条客户记录`, 'success');
+    setTimeout(() => loadMemberList(), 500);
+  } catch(err){
+    console.error('重置密码失败:', err);
+    showToast('重置失败：'+(err.message||JSON.stringify(err)), 'error');
+  }
+}
+
+
+// Export all needed functions to global scope for HTML onclick handlers
+if(typeof enterApp === "function") window.enterApp = enterApp;
+if(typeof loadDashboardStats === "function") window.loadDashboardStats = loadDashboardStats;
+if(typeof renderTable === "function") window.renderTable = renderTable;
+if(typeof isManager === "function") window.isManager = isManager;
+if(typeof toggleTheme === "function") window.toggleTheme = toggleTheme;
+if(typeof switchPage === "function") window.switchPage = switchPage;
+if(typeof doLogout === "function") window.doLogout = doLogout;
+if(typeof showToast === "function") window.showToast = showToast;
+if(typeof isAdmin === "function") window.isAdmin = isAdmin;
+if(typeof loadMemberList === "function") window.loadMemberList = loadMemberList;
+if(typeof showAddMemberForm === "function") window.showAddMemberForm = showAddMemberForm;
+if(typeof hideAddMemberForm === "function") window.hideAddMemberForm = hideAddMemberForm;
+if(typeof doAddMember === "function") window.doAddMember = doAddMember;
+if(typeof deleteMember === "function") window.deleteMember = deleteMember;
+if(typeof switchMemberRole === "function") window.switchMemberRole = switchMemberRole;
+if(typeof fixMemberRoles === "function") window.fixMemberRoles = fixMemberRoles;
+if(typeof resetMemberPwd === "function") window.resetMemberPwd = resetMemberPwd;
+if(typeof clearMyDateFilter === "function") window.clearMyDateFilter = clearMyDateFilter;
+if(typeof clearAllDateFilter === "function") window.clearAllDateFilter = clearAllDateFilter;
+if(typeof onBatchInputChange === "function") window.onBatchInputChange = onBatchInputChange;
+if(typeof prepareBatchImport === "function") window.prepareBatchImport = prepareBatchImport;
+if(typeof startBatchImport === "function") window.startBatchImport = startBatchImport;
+if(typeof resetBatchImport === "function") window.resetBatchImport = resetBatchImport;
+if(typeof loadProfile === "function") window.loadProfile = loadProfile;
+if(typeof saveProfileName === "function") window.saveProfileName = saveProfileName;
+if(typeof changePassword === "function") window.changePassword = changePassword;
+if(typeof closeDupModal === "function") window.closeDupModal = closeDupModal;
+if(typeof escHtml === "function") window.escHtml = escHtml;
+if(typeof loadMyCustomers === "function") window.loadMyCustomers = loadMyCustomers;
+if(typeof loadAllCustomers === "function") window.loadAllCustomers = loadAllCustomers;
+
+</script>
+<script>
+// Bridge: if IIFE failed to export functions (due to runtime error), 
+// this ensures the page at least doesn't crash on onclick
+if(typeof window.enterApp !== 'function') {
+  document.getElementById('result').innerHTML += '<p style="color:red">⚠️ enterApp 未加载，请刷新页面</p>';
+}
+</script>
+
+
+<!-- 订单 - 日期下拉面板 -->
+        <div id="ordDateDropdown" class="date-panel-compact" style="display:none;position:fixed;z-index:99999;border-radius:12px;padding:12px 16px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:260px;max-height:calc(100vh - 24px);overflow-y:auto;">
+          <div style="font-size:13px;color:#94a3b8;margin-bottom:8px;font-weight:500;">快捷选择月份</div>
+          <div id="ordMonthGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;"></div>
+          <span style="font-size:13px;color:#94a3b8;margin-top:8px;margin-bottom:6px;font-weight:500;">自定义范围</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button id="ordDateFromBtn" onclick="pickDateFromO()" class="date-range-btn">开始日期</button>
+            <input type="date" id="ordDateFrom" onchange="onOrdCustomRange()" style="position:absolute;opacity:0;width:1px;height:1px;padding:0;border:none;">
+            <span class="date-sep" style="color:#64748b;font-size:12px;">至</span>
+            <button id="ordDateToBtn" onclick="pickDateToO()" class="date-range-btn">结束日期</button>
+            <input type="date" id="ordDateTo" onchange="onOrdCustomRange()" style="position:absolute;opacity:0;width:1px;height:1px;padding:0;border:none;">
+          </div>
+          <div id="ordCalendarContainer" style="margin-top:8px;"></div>
+        </div>
+<script>
+// 全局错误捕获：在页面上显示报错（飞书无 F12 时使用）
+window.addEventListener('error', function(e){
+  var el = document.getElementById('jsAliveCheck');
+  if(el){
+    el.style.display = 'block';
+    el.style.whiteSpace = 'pre-wrap';
+    el.textContent = '[JS Error] ' + e.message + '\n' + (e.filename||'').split('/').pop() + ':' + e.lineno;
+  }
+});
+</script>
+</body>
+</html>
