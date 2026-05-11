@@ -164,7 +164,7 @@ window._resetLoginBtn = function(){
               })
               .catch(function(err){ console.warn('[Feishu] 请求失败:', err); resolve(null); });
             },
-            onFail: function(err){ console.warn('[Feishu] 获取 code 失败:', err); resolve(null); }
+            onFail: function(err){ console.warn('[Feishu] 获取 code 失败:', err); var t=document.getElementById('feishuDebugTip'); if(t){t.style.background='#dc2626'; t.textContent='❌ 获取飞书授权码失败: '+(err.msg||'');} resolve(null); }
           });
         };
         if(window.dd.ready){
@@ -177,8 +177,21 @@ window._resetLoginBtn = function(){
   };
 
   // 页面加载时：如果在飞书环境，尝试自动登录
-  if(isFeishuEnv()){
+  window._feishuEnv = isFeishuEnv();
+  if(window._feishuEnv){
+    // 在登录页显示飞书环境提示（调试用）
     window.addEventListener('DOMContentLoaded', function(){
+      var loginPage = document.getElementById('loginPage');
+      if(loginPage){
+        var tip = document.createElement('div');
+        tip.id = 'feishuDebugTip';
+        tip.style.cssText = 'background:#1e40af;color:#fff;padding:8px 14px;border-radius:8px;margin-bottom:12px;font-size:13px;text-align:center;';
+        tip.textContent = '📡 检测到飞书环境，正在尝试免登...';
+        loginPage.querySelector('.login-card').insertBefore(tip, loginPage.querySelector('.login-card').firstChild);
+      }
+    });
+  }
+  if(window._feishuEnv){
       window._feishuAutoLogin().then(function(user){
         if(user){
           // 自动登录成功 → 直接进入系统
