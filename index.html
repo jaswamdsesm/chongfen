@@ -8,7 +8,8 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- 飞书工作台 H5 应用：window.dd 由飞书客户端自动注入，无需手动引入 JSAPI 脚本 -->
+<!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
+<script src="https://lf-scm-cn.feishucdn.com/lark/op/h5-js-sdk-1.5.44.js"></script>
 <script>
 function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString();}
 // ========== doLogin 独立定义（放在最前面确保可用）==========
@@ -95,7 +96,7 @@ window._resetLoginBtn = function(){
 (function(){
   // 是否在飞书环境（增强检测）
   function isFeishuEnv(){
-    if(window.dd && window.dd.runtime) return true;
+    if(window.tt && window.tt.runtime) return true;
     if(/Feishu|Lark/i.test(navigator.userAgent)) return true;
     if(/feishu=1/.test(window.location.search)) return true;
     return false;
@@ -106,18 +107,45 @@ window._resetLoginBtn = function(){
 
   // 显示飞书环境详细诊断信息（调试用）
   function showFeishuDebugInfo(){
-    var ddStatus = typeof window.dd;
-    var ddRuntime = '不存在';
-    var ddReady = 'false';
-    if(window.dd){
-      ddStatus = '存在';
-      if(window.dd.runtime){ ddRuntime = '存在'; }
-      if(typeof window.dd.ready === 'function'){ ddReady = '存在'; }
+    var ttObj = window.tt || window.h5sdk;
+    var ttStatus = typeof ttObj;
+    var sdkSrc = 'null';
+    if(ttObj === window.tt){ sdkSrc = 'window.tt'; }
+    else if(ttObj === window.h5sdk){ sdkSrc = 'window.h5sdk'; }
+    var ttRuntime = '不存在';
+    var ttReady = 'false';
+    var ttConfigFn = '不存在';
+    if(ttObj){
+      if(ttObj.runtime){ ttRuntime = '存在'; }
+      if(typeof ttObj.ready === 'function'){ ttReady = '存在'; }
+      if(typeof ttObj.config === 'function'){ ttConfigFn = '存在'; }
     }
+    var ua = navigator.userAgent;
+    var isFeishuUA = ua.includes('Lark') || ua.includes('Feishu') || ua.includes('BytedanceWebview');
+    var info = [
+      'tt: ' + ttStatus + '(' + sdkSrc + ')',
+      'tt.runtime: ' + ttRuntime,
+      'tt.ready: ' + ttReady,
+      'tt.config: ' + ttConfigFn,
+      'UA含Feishu: ' + (isFeishuUA ? '是' : '否'),
+      'UA: ' + ua.substring(0, 45),
+      'corpId: ' + (window._FEISHU_CORP_ID || '(未设置)')
+    ];
+    var t = document.getElementById('feishuDebugTip');
+    if(t){
+      t.innerHTML = '🔍 飞书诊断:<br>' + info.join('<br>');
+      t.style.fontSize = '11px';
+      t.style.lineHeight = '1.5';
+      t.style.textAlign = 'left';
+      t.style.display = 'block';
+      if(!ttObj || !isFeishuUA){ t.style.background = '#dc2626'; }
+      else { t.style.background = '#1e40af'; }
+    }
+  }
     var info = [
       'dd: ' + ddStatus,
-      'dd.runtime: ' + ddRuntime,
-      'dd.ready: ' + ddReady,
+      'tt.runtime: ' + ddRuntime,
+      'tt.ready: ' + ddReady,
       'UA: ' + navigator.userAgent.substring(0, 40),
       'corpId: ' + (window._FEISHU_CORP_ID || '(未设置)')
     ];
@@ -131,18 +159,30 @@ window._resetLoginBtn = function(){
     }
   }
 
-  // 等待飞书 JSAPI 就绪（最多等 15 秒）
-  function waitForFeishuJSAPI(timeout){
-    timeout = timeout || 15000; // 默认 15 秒
+  // 飞书 JSAPI SDK 初始化（对齐 shareholder-accounting 正确实现）
+  function feishuConfig(){
     return new Promise(function(resolve){
-      if(window.dd && window.dd.runtime){ resolve(true); return; }
-      var elapsed = 0;
-      var timer = setInterval(function(){
-        elapsed += 200;
-        if(window.dd && window.dd.runtime){ clearInterval(timer); resolve(true); }
-        else if(elapsed >= timeout){ clearInterval(timer); resolve(false); }
-      }, 200);
+      var ttObj = window.tt || window.h5sdk;
+      if(!ttObj){
+        console.warn('[免登] 飞书 SDK 未加载');
+        resolve(false);
+        return;
+      }
+      if(ttObj.config){
+        ttObj.config({
+          appId: window._FEISHU_CORP_ID || '',
+          timestamp: Math.floor(Date.now() / 1000),
+          nonceStr: 'rand_' + Math.random().toString(36).substr(2, 8),
+          signature: 'not_used',
+          jsApiList: ['requestAuthCode'],
+          onSuccess: function(){ console.log('[免登] tt.config 成功'); resolve(true); },
+          onFail: function(err){ console.warn('[免登] tt.config 失败（继续尝试）:', err); resolve(true); }
+        });
+      } else {
+        resolve(true);
+      }
     });
+  });
   }
 
   // 页面加载时立即显示飞书诊断信息
@@ -180,28 +220,28 @@ window._resetLoginBtn = function(){
     if(!isFeishuEnv()){ return Promise.resolve(null); }
 
     // 4. 飞书环境 → 等待 JSAPI 就绪 → 获取 auth code
-    return waitForFeishuJSAPI(15000).then(function(ready){
+    return feishuConfig(15000).then(function(ready){
       if(!ready){
         var t = document.getElementById('feishuDebugTip');
         if(t){t.style.background='#dc2626'; t.textContent='JSAPI 加载超时（15s），请检查网络'; t.dataset.detailed='1';}
         return Promise.resolve(null);
       }
-      if(!window.dd || !window.dd.ready){
+      if(!window.tt || !window.tt.ready){
         var t3 = document.getElementById('feishuDebugTip');
-        if(t3){t3.style.background='#dc2626'; t3.textContent='dd.ready 不存在，JSAPI 初始化失败'; t3.dataset.detailed='1';}
+        if(t3){t3.style.background='#dc2626'; t3.textContent='tt.ready 不存在，JSAPI 初始化失败'; t3.dataset.detailed='1';}
         return Promise.resolve(null);
       }
       return new Promise(function(resolve){
         var done = false;
         var timeout = setTimeout(function(){ if(!done){ done=true; resolve(null); } }, 10000);
-        window.dd.ready(function(){
-          if(!window.dd.runtime || !window.dd.runtime.permission){
+        window.tt.ready(function(){
+          if(!window.tt.runtime || !window.tt.runtime.permission){
             done = true; clearTimeout(timeout);
             var t = document.getElementById('feishuDebugTip');
-            if(t){t.style.background='#dc2626'; t.textContent='dd.runtime.permission 不存在'; t.dataset.detailed='1';}
+            if(t){t.style.background='#dc2626'; t.textContent='tt.runtime.permission 不存在'; t.dataset.detailed='1';}
             resolve(null); return;
           }
-          window.dd.runtime.permission.requestAuthCode({
+          window.tt.runtime.permission.requestAuthCode({
             corpId: window._FEISHU_CORP_ID || '',
             onSuccess: function(res){
               if(done) return;
