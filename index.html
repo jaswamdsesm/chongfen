@@ -144,6 +144,13 @@ window._resetLoginBtn = function(){
     });
   }
 
+  // 页面加载时立即显示飞书诊断信息
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', showFeishuDebugInfo);
+  } else {
+    showFeishuDebugInfo();
+  }
+
   // 飞书免登：获取用户身份并登录
   window._feishuAutoLogin = function(){
     // 1. 先检查 URL hash（OAuth 回调）
