@@ -210,13 +210,17 @@ window._resetLoginBtn = function(){
 
   // 飞书免登：获取用户身份并登录
   window._feishuAutoLogin = function(){
+    var _dt = document.getElementById('feishuDebugTip');
+    if(_dt) _dt.innerHTML += '<br>①进入函数';
+    try {
     // 1. 先检查 URL hash（OAuth 回调）
     var hash = window.location.hash || '';
     var m = hash.match(/session=([^&]+)/);
     if(m){
+      if(_dt) _dt.innerHTML += '<br>②hash匹配';
       try{
         var session = JSON.parse(atob(m[1]));
-        window.history.replaceState(null,'','/');
+        window.history.replaceState(null,'/');
         window.currentUser = session;
         localStorage.setItem('crm_user', JSON.stringify(session));
         return Promise.resolve(session);
@@ -226,17 +230,18 @@ window._resetLoginBtn = function(){
     // 2. 检查本地存储
     var saved = localStorage.getItem('crm_user');
     if(saved){
+      if(_dt) _dt.innerHTML += '<br>②有localStorage: ' + saved.substring(0,30);
       try{
         var u = JSON.parse(saved);
-        if(u && u.name && u.uid){ window.currentUser = u; return Promise.resolve(u); }
+        if(u && u.name && u.uid){ window.currentUser = u; if(_dt) _dt.innerHTML += '<br>②直接返回localUser'; return Promise.resolve(u); }
       }catch(e){ localStorage.removeItem('crm_user'); }
     }
 
     // 3. 不在飞书环境，跳过免登
     var _fe = isFeishuEnv();
     console.log('[免登] isFeishuEnv=' + _fe + ', tt=' + !!window.tt + ', runtime=' + !!(window.tt && window.tt.runtime) + ', UA=' + navigator.userAgent.substring(0,60));
-    if(_debugTip) _debugTip.innerHTML += '<br>⚙️ isFeishuEnv: ' + _fe;
-    if(!_fe){ return Promise.resolve(null); }
+    if(_dt) _dt.innerHTML += '<br>③isFeishuEnv:' + _fe + ' tt:' + !!window.tt;
+    if(!_fe){ if(_dt) _dt.innerHTML += '<br>③跳过(非飞书)'; return Promise.resolve(null); }
 
     // 4. 飞书环境 → 等待 JSAPI 就绪 → 获取 auth code
     return feishuConfig(15000).then(function(ready){
@@ -303,6 +308,11 @@ window._resetLoginBtn = function(){
       });
     });
   });
+    } catch(e) {
+      if(_dt) _dt.innerHTML += '<br>❌异常:' + String(e).substring(0,80);
+      return Promise.resolve(null);
+    }
+  };
 
 </script>
 <script>
