@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>客户信息库 v5.10</title>
+<title>客户信息库 v5.11</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051217'):('?_v=2026051217');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051218'):('?_v=2026051218');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -269,11 +269,13 @@ window._resetLoginBtn = function(){
           if(data.success && data.user){
             // ⑦免登成功 → 自动同步到 members 表（新用户自动注册为员工）
             var fu = data.user;
-            window.currentUser = { name: fu.name, uid: fu.feishu_user_id || fu.uid, role: fu.role || 'member' };
+            var _fuUid = fu.feishu_user_id || fu.uid || '';
+            var _fuRole = (_fuUid === '592631') ? 'admin' : (fu.role || 'member');
+            window.currentUser = { name: fu.name, uid: _fuUid, role: _fuRole };
             localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
             // 异步同步 members 表（不阻塞进入系统）
             _syncFeishuUserToMembers(fu);
-            log('⑦免登成功:' + fu.name + ' (role=' + (fu.role||'member') + ')');
+            log('⑦免登成功:' + fu.name + ' (role=' + _fuRole + ')');
             return window.currentUser;
           } else {
             var errMsg = (data && data.error) ? data.error : '未知错误';
@@ -312,8 +314,11 @@ window._resetLoginBtn = function(){
           if(res.data && res.data.length > 0){
             // 已存在 → 更新 name 和 role（防止改名或角色变更后不同步）
             var existing = res.data[0];
-            if(existing.role !== fu.role && existing.name === name){
-              sb.from('members').update({role: fu.role}).eq('uid', feishuUid).eq('name', name);
+            // ALI(592631) 强制保持超管身份
+            var targetRole = (feishuUid === '592631') ? 'admin' : (fu.role || existing.role || 'member');
+            if(existing.role !== targetRole && existing.name === name){
+              sb.from('members').update({role: targetRole}).eq('uid', feishuUid).eq('name', name);
+              console.log('[免登同步] 角色更新:', name, existing.role, '→', targetRole);
             }
             console.log('[免登同步] 成员已存在:', name, 'role=', existing.role);
           } else {
@@ -971,6 +976,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
             <input id="addMemPwd" type="password" placeholder="初始登录密码" class="add-mem-input" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
             <select id="addMemRole" class="add-mem-input" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
               <option value="member">普通成员</option>
+              <option value="manager">管理员</option>
               <option value="admin" id="addMemRoleAdminOpt" style="display:none;">超级管理员</option>
             </select>
           </div>
@@ -1662,19 +1668,23 @@ function enterApp(){
   // 所有用户显示国家饼图
   document.getElementById('countryChartCard').style.display='';
   
-  // ADMIN 显示成员管理 + 销售汇总
-  // 管理员/超管设置
-  if(isAdmin()){
+  // 超管/管理员 显示成员管理 + 销售汇总
+  // 权限设置
+  if(isManager()){
     document.getElementById('navMemberMgr').style.display='';
     document.getElementById('adminSummaryCard').style.display='';
     buildAdminMonthOptions();
   }
   if(isAdmin()) document.getElementById('addMemRoleAdminOpt').style.display='';
+  if(isManager() && !isAdmin()) {
+    // 管理员可以看到 addMemberForm 但只能添加 member/manager
+    // 由 showAddMemberForm 控制具体选项
+  }
   populateMonthSelects();
 
   // 并行加载工作台统计 + 管理员汇总（原来串行等 adminSummary 完才跑 dashboard）
   loadDashboardStats();
-  if(isAdmin()) loadAdminSummary();
+  if(isManager()) loadAdminSummary();
 }
 
 // ============================================================
@@ -3878,12 +3888,17 @@ document.head.appendChild(_orderLightCSS);
 // 成员管理（仅ADMIN）
 // ============================================================
 
-/** 判断是否为超级管理员（唯一管理角色，只有 admin/member 两级） */
+/** 判断是否为超管（一级，最高权限：提权、删除、全部数据查看） */
 function isAdmin(){
   return currentUser && currentUser.role === 'admin';
 }
 
-/** 加载成员列表（从 members 表读取） */
+/** 判断是否为管理员（二级，含超管和管理员：成员管理、销售汇总可见） */
+function isManager(){
+  return currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager');
+}
+
+/** 加载成员列表（从 members 表读取） 
 async function loadMemberList(){
   const c = document.getElementById('memberList');
   if(!supabaseClient){
@@ -3923,25 +3938,29 @@ async function loadMemberList(){
       // 角色显示文字
       let roleTag = '';
       if(m.role === 'admin') roleTag = '<span style="font-size:11px;color:#ef4444;">(超管)</span>';
+      else if(m.role === 'manager') roleTag = '<span style="font-size:11px;color:#f59e0b;">(管理员)</span>';
       
       // 操作列
       let actionCell = '';
       if(isMe){
         actionCell = '<span style="color:#64748b;font-size:12px;">—</span>';
       } else if(isAdmin()){
-        // 超级管理员：完整权限（角色选择 + 重置密码 + 删除）
-        // 超管不能改自己角色；其他人只能选 admin/member
+        // 超级管理员：完整权限（角色选择 + 重置密码 + 删除）— 三级权限体系
+        // 超管不能改自己角色；其他人可选 admin/manager/member
         let roleSelectForAdmin;
         if(m.role === 'admin'){
           // 该成员是超管 → 显示固定文字（不可改）
           roleSelectForAdmin = '<span style="color:#ef4444;font-size:12px;">超管</span>';
         } else {
-          // 非 admin 成员 → 显示下拉选择
-          roleSelectForAdmin = `<select onchange="switchMemberRole('${m.uid}','${escHtml(m.name)}',this.value,this)" class="role-select" data-current="${m.role}" style="padding:5px 8px;border-radius:6px;border:1px solid rgba(99,102,241,.35);background:rgba(99,102,241,.12);color:#c7d2fe;font-size:12px;outline:none;cursor:pointer;"><option value="admin" ${m.role==='admin'?'selected':''}>超管</option><option value="member" ${m.role==='member'?'selected':''}>普通成员</option></select>`;
+          // 非 admin 成员 → 显示三级下拉选择
+          roleSelectForAdmin = `<select onchange="switchMemberRole('${m.uid}','${escHtml(m.name)}',this.value,this)" class="role-select" data-current="${m.role}" style="padding:5px 8px;border-radius:6px;border:1px solid rgba(99,102,241,.35);background:rgba(99,102,241,.12);color:#c7d2fe;font-size:12px;outline:none;cursor:pointer;"><option value="admin">超管</option><option value="manager" ${m.role==='manager'?'selected':''}>管理员</option><option value="member" ${m.role==='member'?'selected':''}>普通成员</option></select>`;
         }
         actionCell = `${roleSelectForAdmin} <button class="btn btn-sm btn-primary" onclick="resetMemberPwd('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;">重置密码</button><button class="btn btn-sm btn-danger" onclick="deleteMember('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;">删除</button>`;
+      } else if(isManager()){
+        // 二级管理员：可以重置密码，但不能改角色或删除
+        actionCell = `<button class="btn btn-sm btn-primary" onclick="resetMemberPwd('${m.uid}','${escHtml(m.name)}')">重置密码</button>`;
       } else {
-        // 二级管理员：只能看，不能操作
+        // 普通成员：只能看
         actionCell = '<span style="color:#64748b;font-size:12px;">—</span>';
       }
       return `
@@ -3951,14 +3970,14 @@ async function loadMemberList(){
         <td style="color:${pwdColor};font-family:monospace;">••••••</td>
         <td>${custCountMap[m.name] || 0} 条客户</td>
         <td>${formatTime(m.created_at)}</td>
-        ${isAdmin() ? '<td>' + actionCell + '</td>' : ''}
+        ${isManager() ? '<td>' + actionCell + '</td>' : ''}
       </tr>`;
     }).join('');
 
     c.innerHTML = `
       <div class="table-wrap">
         <table>
-          <thead><tr><th>#</th><th>姓名</th><th>登录密码</th><th>客户数</th><th>加入时间</th>${isAdmin() ? '<th>操作</th>' : ''}</tr></thead>
+          <thead><tr><th>#</th><th>姓名</th><th>登录密码</th><th>客户数</th><th>加入时间</th>${isManager() ? '<th>操作</th>' : ''}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -3973,12 +3992,16 @@ async function loadMemberList(){
 function showAddMemberForm(){ 
   document.getElementById('addMemberForm').style.display='block';
   const roleSelect = document.getElementById('addMemRole');
+  var adminOpt = document.getElementById('addMemRoleAdminOpt');
   if(isAdmin()){
-    // 超管: 可看到超管选项
-    document.getElementById('addMemRoleAdminOpt').style.display='';
+    // 超管: 可看到超管+管理员选项
+    if(adminOpt) adminOpt.style.display='';
+  } else if(isManager()){
+    // 管理员: 可看到管理员选项，但看不到超管选项
+    if(adminOpt) adminOpt.style.display='none';
+    roleSelect.value = 'manager';
   } else {
     // 普通员工: 只能选普通成员
-    var adminOpt = document.getElementById('addMemRoleAdminOpt');
     if(adminOpt) adminOpt.style.display='none';
     roleSelect.value = 'member';
   }
@@ -4044,9 +4067,9 @@ async function switchMemberRole(memberUid, memberName, newRole, selectEl){
   if(!newRole) return;
   const originalRole = selectEl ? selectEl.dataset.current : '';
   console.log('[角色变更] 目标:', memberName, '(', memberUid, ')', '→', newRole, '(原:', originalRole, ')');
-  // 只有超管能将他人提升为超管
-  if(!isAdmin() && newRole === 'admin'){
-    showToast('你没有此操作权限','error');
+  // 只有超管能将他人提升为超管或管理员
+  if(!isAdmin() && (newRole === 'admin' || newRole === 'manager')){
+    showToast('只有超管才能修改他人角色','error');
     if(selectEl) selectEl.value = selectEl.dataset.current;
     return;
   }
@@ -4056,7 +4079,7 @@ async function switchMemberRole(memberUid, memberName, newRole, selectEl){
     if(selectEl) selectEl.value = selectEl.dataset.current;
     return;
   }
-  const roleLabel = newRole === 'admin' ? '超级管理员' : '普通成员';
+  const roleLabel = newRole === 'admin' ? '超级管理员' : (newRole === 'manager' ? '管理员' : '普通成员');
   const action = `设为${roleLabel}`;
   if(!confirm(`确定将「${memberName}」${action}？`)){ 
     if(selectEl) selectEl.value = selectEl.dataset.current;
@@ -4094,7 +4117,7 @@ async function fixMemberRoles(){
     console.log('[修复] 当前成员列表:', members);
     
     // 2. 将非 admin、非指定保留 的成员全部重置为 member
-    const toFix = members.filter(m => m.role !== 'admin');
+    const toFix = members.filter(m => m.role !== 'admin' && m.role !== 'manager');
     console.log('[修复] 将被重置为 member:', toFix.map(m=>m.name));
     
     for(const m of toFix){
