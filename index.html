@@ -158,22 +158,6 @@ window._resetLoginBtn = function(){
       else { t.style.background = '#1e40af'; }
     }
   }
-    var info = [
-      'dd: ' + ddStatus,
-      'tt.runtime: ' + ddRuntime,
-      'tt.ready: ' + ddReady,
-      'UA: ' + navigator.userAgent.substring(0, 40),
-      'corpId: ' + (window._FEISHU_CORP_ID || '(未设置)')
-    ];
-    var t = document.getElementById('feishuDebugTip');
-    if(t){
-      t.innerHTML = '🔍 飞书诊断:<br>' + info.join('<br>');
-      t.style.fontSize = '11px';
-      t.style.lineHeight = '1.5';
-      t.style.textAlign = 'left';
-      t.style.display = 'block';
-    }
-  }
 
   // 飞书 JSAPI SDK 初始化（对齐 shareholder-accounting 正确实现）
   function feishuConfig(){
@@ -198,7 +182,6 @@ window._resetLoginBtn = function(){
         resolve(true);
       }
     });
-  });
   }
 
   // 页面加载时立即显示飞书诊断信息
@@ -307,7 +290,6 @@ window._resetLoginBtn = function(){
         });
       });
     });
-  });
     } catch(e) {
       if(_dt) _dt.innerHTML += '<br>❌异常:' + String(e).substring(0,80);
       return Promise.resolve(null);
