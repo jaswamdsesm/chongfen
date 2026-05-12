@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>客户信息库 v5.5.0</title>
+<title>客户信息库 v5.5.1</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -296,8 +296,9 @@ window._resetLoginBtn = function(){
       return Promise.resolve(null);
     }
   };
-
+})();
 </script>
+
 <script>
 // CDN 加载失败检测 + 备用 CDN
 window._supabaseLoadStatus = 'loading';
@@ -610,7 +611,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 </head>
 <body>
 <!-- 飞书 JSAPI 调试提示条（始终渲染，由 JS 控制显示/内容） -->
-<div id="feishuDebugTip" style="position:fixed;top:0;left:0;right:0;background:#1e40af;color:#fff;padding:6px 12px;font-size:11px;line-height:1.5;z-index:99999;display:block;text-align:left;">⏳ v5.5.0 正在检测飞书环境...</div>
+<div id="feishuDebugTip" style="position:fixed;top:0;left:0;right:0;background:#1e40af;color:#fff;padding:6px 12px;font-size:11px;line-height:1.5;z-index:99999;display:block;text-align:left;">⏳ v5.5.1 正在检测飞书环境...</div>
 
 <!-- JS 存活检测：脚本正常执行时会移除此元素 -->
 <div id="jsAliveCheck" style="position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;text-align:center;padding:8px;font-size:13px;z-index:99999;">⚠️ JavaScript 未执行 — 请按 F12 打开控制台查看报错</div>
