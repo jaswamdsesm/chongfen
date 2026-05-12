@@ -9,7 +9,18 @@
 <meta http-equiv="Expires" content="0">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
-<script src="https://lf-scm-cn.feishucdn.com/lark/op/h5-js-sdk-1.5.44.js"></script>
+<!-- 主 CDN：飞书国内 -->
+<script src="https://lf-scm-cn.feishucdn.com/lark/op/h5-js-sdk-1.5.44.js" onerror="
+  console.warn('[SDK] 主CDN加载失败，尝试备用...');
+  var s2=document.createElement('script');
+  s2.src='https://lf3-ecdn-go.feishucdn.com/lark-op/h5-js-sdk-1.5.44.js';
+  s2.onerror=function(){
+    var s3=document.createElement('script');
+    s3.src='https://unpkg.com/@larksuiteoapi/h5-js-sdk@1.5.44/dist/index.js';
+    document.head.appendChild(s3);
+  };
+  document.head.appendChild(s2);
+"></script>
 <script>
 function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString();}
 // ========== doLogin 独立定义（放在最前面确保可用）==========
@@ -96,9 +107,12 @@ window._resetLoginBtn = function(){
 (function(){
   // 是否在飞书环境（增强检测）
   function isFeishuEnv(){
-    if(window.tt && window.tt.runtime) return true;
-    if(/Feishu|Lark/i.test(navigator.userAgent)) return true;
+    // 优先：UA 包含飞书标识
+    if(/Feishu|Lark|BytedanceWebview/i.test(navigator.userAgent)) return true;
+    // 其次：URL 参数
     if(/feishu=1/.test(window.location.search)) return true;
+    // 最后：tt 对象存在
+    if(window.tt && window.tt.runtime) return true;
     return false;
   }
 
