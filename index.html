@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>客户信息库 v5.6.1</title>
+<title>客户信息库 v5.6.2</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051203'):('?_v=2026051203');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051204'):('?_v=2026051204');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -201,13 +201,40 @@ window._resetLoginBtn = function(){
     return Promise.reject(new Error('requestAuthCode 不可用'));
   }
 
-  // 用 code 换用户信息
+  // 用 code 换用户信息（增强错误诊断）
   function fetchUser(code){
+    log('⑥fetch→' + AUTH_URL.substring(0, 50) + '...');
     return fetch(AUTH_URL, {
       method: 'POST',
+      mode: 'cors',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({code: code})
-    }).then(function(r){ return r.json(); });
+    }).then(function(r){
+      log('⑥响应status:' + r.status);
+      return r.json();
+    }).catch(function(err){
+      log('⑥fetch异常:' + String(err).substring(0, 120));
+      // 备用：尝试用 XMLHttpRequest
+      log('⑥尝试XHR备用...');
+      return new Promise(function(resolve, reject){
+        try {
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', AUTH_URL, true);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.onreadystatechange = function(){
+            if(xhr.readyState === 4){
+              log('⑥XHR status:' + xhr.status);
+              if(xhr.status === 200){ try{ resolve(JSON.parse(xhr.responseText)); }catch(e){ reject(e); } }
+              else { reject(new Error('XHR ' + xhr.status)); }
+            }
+          };
+          xhr.onerror = function(){ reject(new Error('XHR network error')); };
+          xhr.send(JSON.stringify({code: code}));
+        } catch(e2){
+          reject(new Error('XHR fail:' + String(e2).substring(0, 80)));
+        }
+      });
+    });
   }
 
   // ===== 主函数 =====
@@ -577,7 +604,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 </head>
 <body>
 <!-- 飞书 JSAPI 调试提示条（始终渲染，由 JS 控制显示/内容） -->
-<div id="feishuDebugTip" style="position:fixed;top:0;left:0;right:0;background:#1e40af;color:#fff;padding:6px 12px;font-size:11px;line-height:1.5;z-index:99999;display:block;text-align:left;">⏳ v5.6.1 正在检测飞书环境...</div>
+<div id="feishuDebugTip" style="position:fixed;top:0;left:0;right:0;background:#1e40af;color:#fff;padding:6px 12px;font-size:11px;line-height:1.5;z-index:99999;display:block;text-align:left;">⏳ v5.6.2 正在检测飞书环境...</div>
 
 <!-- JS 存活检测：脚本正常执行时会移除此元素 -->
 <div id="jsAliveCheck" style="position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;text-align:center;padding:8px;font-size:13px;z-index:99999;">⚠️ JavaScript 未执行 — 请按 F12 打开控制台查看报错</div>
