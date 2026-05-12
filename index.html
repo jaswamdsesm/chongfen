@@ -219,7 +219,10 @@ window._resetLoginBtn = function(){
     }
 
     // 3. 不在飞书环境，跳过免登
-    if(!isFeishuEnv()){ return Promise.resolve(null); }
+    var _fe = isFeishuEnv();
+    console.log('[免登] isFeishuEnv=' + _fe + ', tt=' + !!window.tt + ', runtime=' + !!(window.tt && window.tt.runtime) + ', UA=' + navigator.userAgent.substring(0,60));
+    if(_debugTip) _debugTip.innerHTML += '<br>⚙️ isFeishuEnv: ' + _fe;
+    if(!_fe){ return Promise.resolve(null); }
 
     // 4. 飞书环境 → 等待 JSAPI 就绪 → 获取 auth code
     return feishuConfig(15000).then(function(ready){
