@@ -153,7 +153,13 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
 
   // ===== 主函数 =====
   window._feishuAutoLogin = function(){
-    function log(msg){ console.log('[免登]', msg); }
+    function log(msg){
+      console.log('[免登]', msg);
+      // 同时写到诊断面板（飞书 WebView 没有 F12）
+      var diag = document.getElementById('loginDiag');
+      var pre = document.getElementById('loginDiagLog');
+      if(diag && pre){ diag.style.display='block'; pre.textContent += new Date().toLocaleTimeString()+' '+msg+'\n'; }
+    }
 
     try {
       log('①开始');
@@ -173,7 +179,7 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
       log('③等待SDK...');
 
       // 等待 SDK → config → 获取 code → 换用户信息
-      return waitForSDK(8000)
+      return waitForSDK(3000)
         .then(function(){ log('④SDK就绪'); return doConfig(); })
         .then(function(){ log('⑤获取authCode...'); return getAuthCode(); })
         .then(function(code){ log('⑥code获取成功'); return fetchUser(code); })
@@ -632,6 +638,11 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
         <p style="font-size:15px;color:#c7d2fe;font-weight:600;margin-bottom:8px;">正在通过飞书验证身份...</p>
         <p style="font-size:12px;color:#64748b;">请稍候，系统将自动完成登录</p>
         <div style="margin-top:20px;display:flex;justify-content:center;gap:8px;"><div class="spinner" style="display:inline-block;"></div></div>
+        <!-- 诊断面板：显示免登流程状态 -->
+        <div id="loginDiag" style="margin-top:16px;text-align:left;background:rgba(0,0,0,0.25);border-radius:8px;padding:10px 12px;font-size:11px;font-family:monospace;max-height:180px;overflow-y:auto;display:none;line-height:1.6;">
+          <div style="color:#94a3b8;font-weight:bold;margin-bottom:4px;border-bottom:1px solid rgba(148,163,184,.2);padding-bottom:4px;">[诊断] 免登流程日志</div>
+          <pre id="loginDiagLog" style="white-space:pre-wrap;color:#cbd5e1;margin:0;"></pre>
+        </div>
         <button style="margin-top:18px;width:100%;padding:8px;border:1px solid rgba(148,163,184,.15);border-radius:9px;background:transparent;color:#64748b;font-size:12px;cursor:pointer;" onclick="showConfigArea()">修改数据库配置</button>
       </div>
     </div>
