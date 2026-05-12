@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>客户信息库 v5.13</title>
+<title>客户信息库 v5.14</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051220'):('?_v=2026051220');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051217'):('?_v=2026051217');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -24,84 +24,7 @@
 "></script>
 <script>
 function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString();}
-// ========== doLogin 独立定义（放在最前面确保可用）==========
-window._loginBusy = false;
-window.doLogin = function(){
-  if(window._loginBusy) return;
-  var name = (document.getElementById('loginName')||{}).value || '';
-  var uid = (document.getElementById('loginId')||{}).value || '';
-  name = name.trim(); uid = uid.trim();
-  if(!name){ alert('请输入姓名'); return; }
-  if(!uid){ alert('请输入密码'); return; }
-  
-  var btn = document.getElementById('loginBtn');
-  if(btn){ btn.textContent = '登录中…'; btn.style.opacity = '0.6'; }
-  window._loginBusy = true;
-  
-  // 检查 Supabase
-  if(!window.supabaseClient && window.supabase){
-    try{ window.supabaseClient = window.supabase.createClient(
-      'https://vekkbgscqpppcluhfwrv.supabase.co',
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZla2tiZ3NjcXBwcGNsdWhmd3J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDQ5ODIsImV4cCI6MjA5Mjc4MDk4Mn0.sLaNTrb7oF5yf2bgbR9LITtrYCaLqSm94a-bzaHKAbk'
-    ); }catch(e){ console.error('init err:',e); }
-  }
-  
-  if(!window.supabaseClient){
-    alert('数据库连接失败：Supabase SDK 未加载。\n可能原因：网络被墙/CDN不可访问\n请检查浏览器控制台(F12)确认。');
-    window._resetLoginBtn(); return;
-  }
-  
-  supabaseClient.from('members').select('*').eq('name', name)
-  .then(function(res){
-    var rows = res.data, err = res.error;
-    if(err){
-      alert('登录查询错误: ' + (err.message || JSON.stringify(err)));
-      window._resetLoginBtn(); return;
-    }
-    if(!rows || rows.length === 0){
-      alert('用户不存在: ' + name);
-      window._resetLoginBtn(); return;
-    }
-    var m = rows[0];
-    if(m.password !== uid){
-      alert('密码错误');
-      window._resetLoginBtn(); return;
-    }
-    // 登录成功
-    window.currentUser = {name: m.name, uid: m.uid, role: m.role || 'member'};
-    localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
-    
-    // 进入系统 - 先隐藏登录页，再等主脚本加载
-    document.getElementById('loginPage').style.display = 'none';
-    document.getElementById('appPage').classList.add('active');
-    document.getElementById('sidebarUserName').textContent = '\u5F53\u524D\u7528\u6237\uFF1A' + m.name;
-    
-    // 尝试调用 enterApp 或 loadDashboardStats（带重试）
-    var _enterRetries = 0;
-    function doEnter(){
-      if(typeof enterApp === 'function'){ enterApp(); return; }
-      if(typeof loadDashboardStats === 'function'){ loadDashboardStats(); return; }
-      _enterRetries++;
-      if(_enterRetries < 50){
-        setTimeout(doEnter, 100);
-      } else {
-        console.error('enterApp/loadDashboardStats not found after 50 retries (5s)');
-        alert('\u7CFB\u7EDF\u52A0\u8F7D\u4E0D\u5B8C\u6574\uFF0C\u8BF7\u5237\u65B0\u9875\u9762');
-      }
-    }
-    setTimeout(doEnter, 100);
-  })
-  .catch(function(e){
-    alert('登录异常: ' + (e.message || String(e)));
-    window._resetLoginBtn();
-  });
-};
-
-window._resetLoginBtn = function(){
-  window._loginBusy = false;
-  var btn = document.getElementById('loginBtn');
-  if(btn){ btn.textContent = '\u8FDB\u5165\u7EDF\u7EDF'; btn.style.opacity = ''; }
-};
+// (password login removed in v5.14 - feishu auto-login only)
 </script>
 <script>
 // ========== 飞书免登集成（对齐 feishu-order-inventory-system / shareholder-accounting） ==========
@@ -251,7 +174,7 @@ window._resetLoginBtn = function(){
       if(saved){
         try{
           var u = JSON.parse(saved);
-          if(u && u.name && u.uid){ window.currentUser = u; log('②命中缓存:'+u.name); return Promise.resolve(u); }
+          if(u && u.name && u.uid){ window.currentUser = u; log('②命中缓存(待刷新):'+u.name); /* 不再直接return，继续走免登刷新角色 */ }
         }catch(e){ localStorage.removeItem('crm_user'); }
       }
 
@@ -704,12 +627,14 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
     </div>
 
     <div id="configSaved">
-      <label>销售姓名</label>
-      <input type="text" id="loginName" placeholder="输入你的姓名">
-    <label>登录密码</label>
-    <input type="password" id="loginId" placeholder="输入你的登录密码">
-    <button type="button" class="btn-login" id="loginBtn" onclick="if(typeof window.doLogin==='function'){window.doLogin();}">进入系统</button>
-      <button style="margin-top:10px;width:100%;padding:8px;border:1px solid rgba(148,163,184,.15);border-radius:9px;background:transparent;color:#64748b;font-size:12px;cursor:pointer;" onclick="showConfigArea()">修改数据库配置</button>
+      <div style="text-align:center;padding:32px 0;">
+        <div style="font-size:28px;margin-bottom:12px;">🔐</div>
+        <p style="font-size:15px;color:#c7d2fe;font-weight:600;margin-bottom:8px;">正在通过飞书验证身份...</p>
+        <p style="font-size:12px;color:#64748b;">请稍候，系统将自动完成登录</p>
+        <div style="margin-top:20px;display:flex;justify-content:center;gap:8px;"><div class="spinner" style="display:inline-block;"></div></div>
+        <button style="margin-top:18px;width:100%;padding:8px;border:1px solid rgba(148,163,184,.15);border-radius:9px;background:transparent;color:#64748b;font-size:12px;cursor:pointer;" onclick="showConfigArea()">修改数据库配置</button>
+      </div>
+    </div>
     </div>
   </div>
 </div>
@@ -931,7 +856,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 
     <!-- 个人设置 -->
     <section class="page-section" id="secProfile">
-      <div class="page-header"><h2>个人设置</h2><p>修改显示名称和登录密码</p></div>
+      <div class="page-header"><h2>个人设置</h2><p>修改显示名称</p></div>
       <div class="card">
         <div class="card-title">基本信息</div>
         <div class="form-group">
@@ -947,23 +872,6 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
         </div>
       </div>
       <div class="card">
-        <div class="card-title">修改登录密码</div>
-        <p style="font-size:12px;color:#94a3b8;margin-bottom:14px;">修改后需要用新密码重新登录。</p>
-        <div class="form-group">
-          <label>当前密码</label>
-          <input type="password" id="profileOldPwd" placeholder="输入当前密码">
-        </div>
-        <div class="form-group">
-          <label>新密码 *</label>
-          <input type="password" id="profileNewPwd" placeholder="输入新密码">
-        </div>
-        <div class="form-group">
-          <label>确认新密码 *</label>
-          <input type="password" id="profileConfirmPwd" placeholder="再次输入新密码">
-        </div>
-        <button class="btn btn-primary" onclick="changePassword()">确认修改密码</button>
-      </div>
-      <div class="card">
         <div class="card-title">同步说明</div>
         <p style="font-size:13px;color:#94a3b8;line-height:1.7;">修改名称后，系统会自动将你在数据库中<strong style="color:#e2e8f0;">所有已录入客户</strong>的 owner_name 同步更新为新名称。这个过程可能需要几秒钟，取决于你的客户数量。</p>
       </div>
@@ -971,7 +879,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 
     <!-- 成员管理（仅ADMIN） -->
     <section class="page-section" id="secMemberManage">
-      <div class="page-header"><h2>成员管理</h2><p>管理系统成员，可添加、删除员工及重置密码</p></div>
+      <div class="page-header"><h2>成员管理</h2><p>管理系统成员，可添加、删除员工</p></div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
           <div class="card-title" style="margin-bottom:0;">成员列表</div>
@@ -982,7 +890,6 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
           <div style="font-size:14px;font-weight:600;color:#e2e8f0;margin-bottom:12px;" class="add-member-title">添加新成员</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
             <input id="addMemName" placeholder="姓名" class="add-mem-input" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
-            <input id="addMemPwd" type="password" placeholder="初始登录密码" class="add-mem-input" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
             <select id="addMemRole" class="add-mem-input" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.2);background:rgba(15,23,42,.6);color:#e2e8f0;font-size:13px;outline:none;">
               <option value="member">普通成员</option>
               <option value="manager">管理员</option>
@@ -1450,7 +1357,7 @@ const _globalFns = [
   'pickDateFrom','pickDateTo','showCustomDatePicker','toggleMyDatePicker','onMyCustomRange',
   'pickDateFromA','pickDateToA','showCustomDatePickerA','toggleAllDatePicker','onAllCustomRange',
   'buildAdminMonthOptions','buildAllMonthGrid','pickAllMonth','updateAllDateBtnText',
-  'loadProfile','saveProfileName','changePassword',
+  'loadProfile','saveProfileName',
   'showAddMemberForm','hideAddMemberForm','doAddMember','deleteMember','switchMemberRole','fixMemberRoles','resetMemberPwd',
   'closeDupModal',
   'saveConfig','showConfigArea',
@@ -1507,7 +1414,6 @@ try { window.pickAllMonth = pickAllMonth; } catch(e){}
 try { window.updateAllDateBtnText = updateAllDateBtnText; } catch(e){}
 try { window.loadProfile = loadProfile; } catch(e){}
 try { window.saveProfileName = saveProfileName; } catch(e){}
-try { window.changePassword = changePassword; } catch(e){}
 try { window.showAddMemberForm = showAddMemberForm; } catch(e){}
 try { window.hideAddMemberForm = hideAddMemberForm; } catch(e){}
 try { window.doAddMember = doAddMember; } catch(e){}
@@ -1562,83 +1468,14 @@ function saveConfig() {
 function initSupabase(url,key){ supabaseClient=window.supabase.createClient(url,key); }
 
 // ============================================================
-// 登录/登出
+// 登录/登出（v5.14: 飞书免登模式）
 // ============================================================
-let _loginBusy = false;
 
-function doLogin(){
-  if(_loginBusy) return;
-  const name=document.getElementById('loginName').value.trim();
-  const uid=document.getElementById('loginId').value.trim();
-  if(!name){showToast('请输入姓名','error');return;}
-  if(!uid){showToast('请输入密码','error');return;}
-
-  const btn = document.querySelector('.btn-login');
-  btn.textContent = '登录中…';
-  btn.style.opacity = '0.6';
-  _loginBusy = true;
-
-  // 如果 Supabase 还没初始化，尝试重新初始化
-  if(!supabaseClient && window.supabase){
-    initSupabase(DEFAULT_URL, DEFAULT_KEY);
-  }
-  if(!supabaseClient){
-    showToast('数据库连接失败，请检查网络或 CDN 是否可访问','error');
-    console.error('Supabase client 未初始化，window.supabase=', !!window.supabase);
-    _resetLoginBtn();
-    return;
-  }
-
-  // 用 .select() 而非 .single()，避免"无结果时抛异常"
-  supabaseClient.from('members').select('*').eq('name', name)
-  .then(({data:rows, error})=>{
-    if(error){
-      console.error('登录查询 error:', error);
-      let errMsg = error.message || JSON.stringify(error);
-      if(error.code === '42501' || errMsg.includes('row level security') || errMsg.includes('permission')){
-        errMsg = '数据库权限不足（RLS），请联系管理员';
-      }
-      showToast(`登录失败: ${errMsg}`,'error');
-      _resetLoginBtn();
-      return;
-    }
-    // 检查是否找到用户
-    if(!rows || rows.length === 0){
-      showToast('用户不存在，请检查姓名是否正确','error');
-      _resetLoginBtn();
-      return;
-    }
-    const member = rows[0];
-    // 验证密码
-    if(member.password !== uid){
-      showToast('密码错误','error');
-      _resetLoginBtn();
-      return;
-    }
-    currentUser = { name: member.name, uid: member.uid, role: member.role || 'member' };
-    localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
-    enterApp();
-    showToast(`欢迎，${member.name}`,'success');
-  })
-  .catch(err => {
-    console.error('登录请求异常:', err);
-    const msg = (err?.message || err?.statusText || String(err)).slice(0, 120);
-    showToast(`登录异常: ${msg}`,'error');
-    _resetLoginBtn();
-  });
-}
-
-function _resetLoginBtn(){
-  _loginBusy = false;
-  const btn = document.querySelector('.btn-login');
-  if(btn){ btn.textContent = '进入系统'; btn.style.opacity = ''; }
-}
-
-// 兼容旧数据：如果 localStorage 里存的 user 没有 uid，自动清除重新登录
+// 兼容旧数据：如果 localStorage 里存的 user 没有 name，自动清除重新登录
 function safeEnterApp(savedUser){
   try {
     const u = typeof savedUser === 'string' ? JSON.parse(savedUser) : savedUser;
-    if(!u || !u.name || !u.uid){
+      if(!u || !u.name){
       // 缺少必要字段 → 清除旧数据
       localStorage.removeItem(USER_KEY);
       return false;
@@ -1656,10 +1493,11 @@ function doLogout(){
   currentUser=null;
   localStorage.removeItem(USER_KEY);
   document.getElementById('appPage').classList.remove('active');
-  document.getElementById('loginPage').style.display='flex';
-  _resetLoginBtn();
-  window._loginBusy = false;
-  window._resetLoginBtn();
+      // 飞书免登模式：退出即清除缓存，页面会自动重新走免登流程
+      // 刷新页面触发重新免登
+      location.reload();
+
+
   showToast('已退出','success');
 }
 
@@ -1667,9 +1505,9 @@ function enterApp(){
   // 隐藏全屏 loading（兜底）
   var _le = document.getElementById('appLoadingOverlay');
   if(_le){ _le.style.opacity='0'; setTimeout(function(){ if(_le.parentNode) _le.remove(); }, 400); }
-  // Sync currentUser from doLogin (which sets window.currentUser)
+  // Sync currentUser from feishu auto-login (which sets window.currentUser)
   if(window.currentUser && !currentUser) currentUser = window.currentUser;
-  // Sync supabaseClient from doLogin
+  // Sync supabaseClient from feishu init
   if(window.supabaseClient && !supabaseClient) supabaseClient = window.supabaseClient;
   document.getElementById('loginPage').style.display='none';
   document.getElementById('appPage').classList.add('active');
@@ -3548,54 +3386,11 @@ async function saveProfileName(){
   }
 }
 
+
+// （密码功能已移除，飞书免登无需密码）
 // ============================================================
-// 修改密码（用户自己改）
-// ============================================================
-async function changePassword(){
-  const oldPwd = document.getElementById('profileOldPwd').value.trim();
-  const newPwd = document.getElementById('profileNewPwd').value.trim();
-  const confirmPwd = document.getElementById('profileConfirmPwd').value.trim();
+// changePassword 已移除（飞书免登）
 
-  if(!oldPwd){showToast('请输入当前密码','error');return;}
-  if(!newPwd){showToast('请输入新密码','error');return;}
-  if(newPwd.length < 3){showToast('新密码至少3个字符','error');return;}
-  if(newPwd !== confirmPwd){showToast('两次输入的新密码不一致','error');return;}
-
-  // 验证当前密码
-  if(oldPwd !== currentUser.uid){
-    showToast('当前密码不正确','error');
-    return;
-  }
-
-  if(!confirm(`确定将登录密码修改为「${newPwd}」？\n\n修改后将自动退出，需要用新密码重新登录。`)){
-    return;
-  }
-
-  try{
-    // 1. 更新 members 表的 uid 和 password
-    const { error: memErr } = await supabaseClient
-      .from('members')
-      .update({ uid: newPwd, password: newPwd })
-      .eq('uid', currentUser.uid);
-    if(memErr) throw memErr;
-
-    // 2. 同步 customers 表 owner_uid
-    const { data: updated, error } = await supabaseClient
-      .from('customers')
-      .update({ owner_uid: newPwd, updated_at: _cnISO() })
-      .eq('owner_uid', currentUser.uid)
-      .select('id');
-
-    if(error) throw error;
-
-    // 清除登录状态，强制重新登录
-    showToast(`✅ 密码已修改，请用新密码重新登录`, 'success');
-    setTimeout(() => { doLogout(); }, 1500);
-  } catch(err){
-    console.error('修改密码失败:', err);
-    showToast('修改密码失败：'+(err.message||JSON.stringify(err)), 'error');
-  }
-}
 
 // 归属销售 badge 颜色 - 每个姓名固定一种颜色（精确匹配）
 function getOwnerBadgeColor(name){
@@ -3954,7 +3749,7 @@ async function loadMemberList(){
       if(isMe){
         actionCell = '<span style="color:#64748b;font-size:12px;">—</span>';
       } else if(isAdmin()){
-        // 超级管理员：完整权限（角色选择 + 重置密码 + 删除）— 三级权限体系
+        // 超级管理员：完整权限（角色选择 + 删除）— 三级权限体系
         // 超管不能改自己角色；其他人可选 admin/manager/member
         let roleSelectForAdmin;
         if(m.role === 'admin'){
@@ -3964,10 +3759,10 @@ async function loadMemberList(){
           // 非 admin 成员 → 显示三级下拉选择
           roleSelectForAdmin = `<select onchange="switchMemberRole('${m.uid}','${escHtml(m.name)}',this.value,this)" class="role-select" data-current="${m.role}" style="padding:5px 8px;border-radius:6px;border:1px solid rgba(99,102,241,.35);background:rgba(99,102,241,.12);color:#c7d2fe;font-size:12px;outline:none;cursor:pointer;"><option value="admin">超管</option><option value="manager" ${m.role==='manager'?'selected':''}>管理员</option><option value="member" ${m.role==='member'?'selected':''}>普通成员</option></select>`;
         }
-        actionCell = `${roleSelectForAdmin} <button class="btn btn-sm btn-primary" onclick="resetMemberPwd('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;">重置密码</button><button class="btn btn-sm btn-danger" onclick="deleteMember('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;">删除</button>`;
+        actionCell = `${roleSelectForAdmin}<button class="btn btn-sm btn-danger" onclick="deleteMember('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;">删除</button>`;
       } else if(isManager()){
-        // 二级管理员：可以重置密码，但不能改角色或删除
-        actionCell = `<button class="btn btn-sm btn-primary" onclick="resetMemberPwd('${m.uid}','${escHtml(m.name)}')">重置密码</button>`;
+        // 二级管理员：可查看数据，但不能改角色或删除
+        actionCell = ``;
       } else {
         // 普通成员：只能看
         actionCell = '<span style="color:#64748b;font-size:12px;">—</span>';
@@ -3986,7 +3781,7 @@ async function loadMemberList(){
     c.innerHTML = `
       <div class="table-wrap">
         <table>
-          <thead><tr><th>#</th><th>姓名</th><th>登录密码</th><th>客户数</th><th>加入时间</th>${isManager() ? '<th>操作</th>' : ''}</tr></thead>
+          <thead><tr><th>#</th><th>姓名</th><th>飞书UID</th><th>客户数</th><th>加入时间</th>${isManager() ? '<th>操作</th>' : ''}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -4029,8 +3824,8 @@ async function doAddMember(){
   const role = document.getElementById('addMemRole').value;
 
   if(!name){showToast('请输入姓名','error');return;}
-  if(!pwd){showToast('请输入初始密码','error');return;}
-  if(pwd.length < 3){showToast('密码至少3个字符','error');return;}
+  
+  
 
   // 检查 name 是否已存在（用户名必须唯一）
   const{data:exist}=await supabaseClient.from('members').select('uid').eq('name', name);
@@ -4040,9 +3835,9 @@ async function doAddMember(){
 
   try{
     const{error}=await supabaseClient.from('members').insert({
-      uid: pwd,
+      uid: feishuUid || name,
       name: name,
-      password: pwd,
+      password: '',
       role: role,
       created_at: _cnISO()
     });
@@ -4142,40 +3937,9 @@ async function fixMemberRoles(){
   }
 }
 
-/** 管理员重置员工密码 */
-async function resetMemberPwd(memberUid, memberName){
-  const newPwd = prompt(`重置「${memberName}」的登录密码\n\n请输入新的密码（至少3个字符）：`);
-  if(!newPwd) return; // 取消
-  if(newPwd.length < 3){showToast('密码至少3个字符','error');return;}
+/** 重置密码已移除（飞书免登） */
+function resetMemberPwd(){ showToast("飞书免登模式不支持重置密码","error"); }
 
-  if(!confirm(`确定将「${memberName}」的密码重置为「${newPwd}」？\n\n该员工需要用新密码重新登录。`)){
-    return;
-  }
-
-  try{
-    // 1. 更新 members 表
-    const{error:memErr}=await supabaseClient.from('members')
-      .update({ uid: newPwd, password: newPwd })
-      .eq('uid', memberUid)
-      .eq('name', memberName);
-    if(memErr) throw memErr;
-
-    // 2. 同步 customers 表 owner_uid
-    const{data:updated,error:custErr}=await supabaseClient.from('customers')
-      .update({ owner_uid: newPwd, updated_at: _cnISO() })
-      .eq('owner_uid', memberUid)
-      .select('id');
-
-    if(custErr) throw custErr;
-
-    const count = updated ? updated.length : 0;
-    showToast(`✅ 「${memberName}」的密码已重置，同步更新了 ${count} 条客户记录`, 'success');
-    setTimeout(() => loadMemberList(), 500);
-  } catch(err){
-    console.error('重置密码失败:', err);
-    showToast('重置失败：'+(err.message||JSON.stringify(err)), 'error');
-  }
-}
 
 
 // Export all needed functions to global scope for HTML onclick handlers
@@ -4247,3 +4011,5 @@ window.addEventListener('error', function(e){
 </script>
 </body>
 </html>
+// 占位：防止旧引用报错
+function changePassword(){showToast("飞书免登模式不需要密码","error");}
