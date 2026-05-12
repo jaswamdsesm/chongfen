@@ -1374,10 +1374,22 @@ const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
   console.log('[免登] 开始调用 _feishuAutoLogin...');
   var _debugTip = document.getElementById('feishuDebugTip');
   if(_debugTip) _debugTip.innerHTML += '<br>📡 正在尝试飞书免登...';
-  _feishuAutoLogin().then(function(feishuUser){
-    console.log('[免登] 返回结果:', feishuUser);
-    if(_debugTip) _debugTip.innerHTML += '<br>📋 免登结果: ' + (feishuUser ? ('用户=' + feishuUser.name) : 'null/跳过');
-    if(feishuUser && feishuUser.name){
+
+  // 强制诊断：确认函数存在
+  var _fnExists = typeof window._feishuAutoLogin === 'function';
+  if(_debugTip) _debugTip.innerHTML += '<br>🔧 函数存在:' + _fnExists;
+  console.log('[免登] _feishuAutoLogin exists:', _fnExists);
+
+  if(!_fnExists){
+    if(_debugTip){ _debugTip.style.background='#dc2626'; _debugTip.innerHTML += '<br>❌_feishuAutoLogin未定义!'; }
+  } else {
+    try {
+      var _promise = window._feishuAutoLogin();
+      if(_debugTip) _debugTip.innerHTML += '<br>🔧 Promise类型:' + (typeof _promise.then);
+      _promise.then(function(feishuUser){
+        console.log('[免登] 返回结果:', feishuUser);
+        if(_debugTip) _debugTip.innerHTML += '<br>📋 免登结果: ' + (feishuUser ? ('用户=' + feishuUser.name) : 'null/跳过');
+        if(feishuUser && feishuUser.name){
       // 免登成功，确保 currentUser 和 enterApp 可用
       currentUser = feishuUser;
       if(typeof enterApp === 'function'){
@@ -1385,13 +1397,21 @@ const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
         showToast('飞书免登录成功，欢迎 ' + feishuUser.name, 'success');
       }
     } else {
-      // 免登失败/非飞书环境，走本地登录态
-      const savedUser = localStorage.getItem(USER_KEY);
-      if (savedUser) {
-        safeEnterApp(savedUser);
-      }
+          // 免登失败/非飞书环境，走本地登录态
+          const savedUser = localStorage.getItem(USER_KEY);
+          if (savedUser) {
+            safeEnterApp(savedUser);
+          }
+        }
+      });
+    } catch(callErr) {
+      if(_debugTip){ _debugTip.style.background='#dc2626'; _debugTip.innerHTML += '<br>❌调用异常:' + String(callErr).substring(0,80); }
+      console.error('[免登] 调用异常:', callErr);
+      // 降级走 localStorage
+      const savedUser2 = localStorage.getItem(USER_KEY);
+      if (savedUser2) { safeEnterApp(savedUser2); }
     }
-  });
+  }
 
   // 延迟检测：如果3秒后 supabaseClient 仍为 null，也显示警告
   setTimeout(function(){
