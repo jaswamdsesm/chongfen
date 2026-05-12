@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>客户信息库 v5.9</title>
+<title>客户信息库 v5.10</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051216'):('?_v=2026051216');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051217'):('?_v=2026051217');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -131,8 +131,6 @@ window._resetLoginBtn = function(){
       'UA含Feishu:' + (isFeishuUA ? '✓' : '✗'),
       'UA:' + ua.substring(0, 50)
     ];
-    var el = document.getElementById('feishuDebugTip');
-    if(el){ el.innerHTML = '🔍 ' + info.join(' | '); el.style.display='block'; }
   }
 
   // 立即显示诊断
@@ -243,8 +241,7 @@ window._resetLoginBtn = function(){
 
   // ===== 主函数 =====
   window._feishuAutoLogin = function(){
-    var dt = document.getElementById('feishuDebugTip');
-    function log(msg){ if(dt) dt.innerHTML += '<br>' + msg; console.log('[免登]', msg); }
+    function log(msg){ console.log('[免登]', msg); }
 
     try {
       log('①开始');
@@ -662,9 +659,6 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 </style>
 </head>
 <body>
-<!-- 飞书 JSAPI 调试提示条（始终渲染，由 JS 控制显示/内容） -->
-<div id="feishuDebugTip" style="position:fixed;top:0;left:0;right:0;background:#1e40af;color:#fff;padding:6px 12px;font-size:11px;line-height:1.5;z-index:99999;display:block;text-align:left;">⏳ v5.8 正在检测飞书环境...</div>
-
 <!-- 全屏 Loading（初始化/免登期间显示） -->
 <div id="appLoadingOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 50%,#0f172a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99998;transition:opacity .4s ease-out;">
   <div style="width:48px;height:48px;border:3px solid rgba(99,102,241,.2);border-top-color:#818cf8;border-radius:50%;animation:spin .7s linear infinite;"></div>
@@ -1381,24 +1375,18 @@ const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
   // 飞书免登：优先尝试，成功则直接进系统，失败再走 localStorage
   console.log('[免登] 开始调用 _feishuAutoLogin...');
   setLoadText('正在验证身份...');
-  var _debugTip = document.getElementById('feishuDebugTip');
-  if(_debugTip) _debugTip.innerHTML += '<br>📡 正在尝试飞书免登...';
 
   // 强制诊断：确认函数存在
   var _fnExists = typeof window._feishuAutoLogin === 'function';
-  if(_debugTip) _debugTip.innerHTML += '<br>🔧 函数存在:' + _fnExists;
   console.log('[免登] _feishuAutoLogin exists:', _fnExists);
 
   if(!_fnExists){
-    if(_debugTip){ _debugTip.style.background='#dc2626'; _debugTip.innerHTML += '<br>❌_feishuAutoLogin未定义!'; }
     hideAppLoading();
   } else {
     try {
       var _promise = window._feishuAutoLogin();
-      if(_debugTip) _debugTip.innerHTML += '<br>🔧 Promise类型:' + (typeof _promise.then);
       _promise.then(function(feishuUser){
         console.log('[免登] 返回结果:', feishuUser);
-        if(_debugTip) _debugTip.innerHTML += '<br>📋 免登结果: ' + (feishuUser ? ('用户=' + feishuUser.name) : 'null/跳过');
         hideAppLoading();
         if(feishuUser && feishuUser.name){
       // 免登成功，确保 currentUser 和 enterApp 可用
@@ -1418,7 +1406,6 @@ const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
         }
       });
     } catch(callErr) {
-      if(_debugTip){ _debugTip.style.background='#dc2626'; _debugTip.innerHTML += '<br>❌调用异常:' + String(callErr).substring(0,80); }
       console.error('[免登] 调用异常:', callErr);
       hideAppLoading();
       // 降级走 localStorage
