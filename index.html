@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>客户信息库 v5.11</title>
+<title>客户信息库 v5.12</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051218'):('?_v=2026051218');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051219'):('?_v=2026051219');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -270,12 +270,15 @@ window._resetLoginBtn = function(){
             // ⑦免登成功 → 自动同步到 members 表（新用户自动注册为员工）
             var fu = data.user;
             var _fuUid = fu.feishu_user_id || fu.uid || '';
-            var _fuRole = (_fuUid === '592631') ? 'admin' : (fu.role || 'member');
-            window.currentUser = { name: fu.name, uid: _fuUid, role: _fuRole };
+            var _fuName = fu.name || '';
+            // 超管识别：按名字匹配 ALI/用户592631 + uid 592631（兼容多种 ID 格式）
+            var _isAdminUser = (_fuName === 'ALI' || _fuName === '用户592631' || _fuUid === '592631');
+            var _fuRole = _isAdminUser ? 'admin' : (fu.role || 'member');
+            window.currentUser = { name: _fuName, uid: _fuUid, role: _fuRole };
             localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
             // 异步同步 members 表（不阻塞进入系统）
             _syncFeishuUserToMembers(fu);
-            log('⑦免登成功:' + fu.name + ' (role=' + _fuRole + ')');
+            log('⑦免登成功:' + _fuName + ' (uid=' + _fuUid + ' role=' + _fuRole + ')');
             return window.currentUser;
           } else {
             var errMsg = (data && data.error) ? data.error : '未知错误';
@@ -314,8 +317,9 @@ window._resetLoginBtn = function(){
           if(res.data && res.data.length > 0){
             // 已存在 → 更新 name 和 role（防止改名或角色变更后不同步）
             var existing = res.data[0];
-            // ALI(592631) 强制保持超管身份
-            var targetRole = (feishuUid === '592631') ? 'admin' : (fu.role || existing.role || 'member');
+            // ALI/用户592631 强制保持超管身份（按 uid + 名字双重匹配）
+            var _isSuper = (feishuUid === '592631' || name === 'ALI' || name === '用户592631');
+            var targetRole = _isSuper ? 'admin' : (fu.role || existing.role || 'member');
             if(existing.role !== targetRole && existing.name === name){
               sb.from('members').update({role: targetRole}).eq('uid', feishuUid).eq('name', name);
               console.log('[免登同步] 角色更新:', name, existing.role, '→', targetRole);
@@ -323,7 +327,8 @@ window._resetLoginBtn = function(){
             console.log('[免登同步] 成员已存在:', name, 'role=', existing.role);
           } else {
             // 不存在 → 自动注册为普通成员
-            var defaultRole = (feishuUid === '592631') ? 'admin' : (fu.role || 'member');
+            var _isSuperNew = (feishuUid === '592631' || name === 'ALI' || name === '用户592631');
+            var defaultRole = _isSuperNew ? 'admin' : (fu.role || 'member');
             console.log('[免登同步] 新用户注册:', name, 'role=', defaultRole, 'uid=', feishuUid);
             return sb.from('members').insert({
               uid: feishuUid,
