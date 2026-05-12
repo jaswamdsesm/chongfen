@@ -190,21 +190,42 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
             var _fuUid = fu.feishu_user_id || fu.uid || '';
             // 飞书 user_id 是数字 ID（如 592631），open_id 是 ou_xxx 格式
             var _fuNumericId = String(fu.user_id || '');  // 飞书数字 user_id
-            var _fuName = fu.name || '';
+            // Try multiple fields for name
+            var _fuName = fu.name || fu.en_name || fu.username || '';
+            if(!_fuName && fu.email) _fuName = fu.email.split('@')[0];
             // 超管识别：优先用 Edge Function 返回的 is_admin（从飞书应用超管列表查询），fallback 到 name / user_id 匹配
             console.log('[免登] ⑦用户字段:', JSON.stringify(fu));
             var _isAdminUser = fu.is_admin === true || fu.is_admin === 'true' || (
-              // fallback：name 或数字 user_id 硬编码兜底
+              // fallback: name / en_name / email / user_id
               _fuName === 'ALI' || _fuName === 'Thomas' ||
-              _fuNumericId === '592631'  // Thomas 的飞书数字 ID
+              (fu.email && fu.email.toLowerCase().indexOf('ali') > -1) ||
+              _fuNumericId === '592631'
             );
             var _fuRole = _isAdminUser ? 'admin' : (fu.role || 'member');
-            window.currentUser = { name: _fuName, uid: _fuUid, role: _fuRole };
+            window.currentUser = { name: _fuName || _fuUid, uid: _fuUid, role: _fuRole, _rawFeishu: fu };
             localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
             // 异步同步 members 表（不阻塞进入系统）
             _syncFeishuUserToMembers(fu);
             log('⑦免登成功:' + _fuName + ' (uid=' + _fuUid + ' user_id=' + _fuNumericId + ' role=' + _fuRole + ')');
+            // 飞书无F12，在页面上显示用户字段用于调试
+            var dbg = document.getElementById('jsAliveCheck');
+            if(dbg){
+              dbg.style.display='block'; dbg.style.background='#1e293b'; dbg.style.color='#a5b4fc';
+              dbg.style.whiteSpace='pre-wrap'; dbg.style.textAlign='left'; dbg.style.padding='10px'; dbg.style.fontSize='12px';
+              dbg.textContent='[诊断] 用户字段:\\n' + JSON.stringify(fu, null, 2);
+            }
             return window.currentUser;
+            // Show identity banner at top of page (Feishu has no F12)
+            setTimeout(function(){
+              var existing = document.getElementById('__identityBanner');
+              if(existing) existing.remove();
+              var banner = document.createElement('div');
+              banner.id = '__identityBanner';
+              banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;padding:10px 18px;font-size:13px;font-weight:600;box-shadow:0 2px 12px rgba(0,0,0,.4);line-height:1.6;';
+              banner.innerHTML = 'ID: <b>' + (_fuName||'EMPTY') + '</b> | UID: ' + _fuUid + ' | user_id: ' + _fuNumericId + ' | Role: <b>' + _fuRole + '</b> | is_admin: ' + fu.is_admin + '<br><span style="font-size:11px;opacity:.85">Feishu raw: name="' + (fu.name||'EMPTY') + '" en_name="' + (fu.en_name||'EMPTY') + '" email="' + (fu.email||'EMPTY') + '"</span>';
+              document.body.prepend(banner);
+              setTimeout(function(){ banner.style.transition='opacity .6s'; banner.style.opacity='0'; setTimeout(function(){banner.remove();},700); }, 12000);
+            }, 500);
           } else {
             var errMsg = (data && data.error) ? data.error : '未知错误';
             log('❌免登失败:' + errMsg);
