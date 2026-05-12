@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>客户信息库 v5.18</title>
+<title>客户信息库 v5.19</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051301'):('?_v=2026051301');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051302'):('?_v=2026051302');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -174,6 +174,11 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
       }
 
       // 非飞书环境 → 跳过
+      // 已手动退出，不再自动免登
+      if(localStorage.getItem('manual_logout') === '1'){
+        document.getElementById('appPage').innerHTML = '<div style="padding:60px;text-align:center;color:#94a3b8;font-size:15px;">🙋 您已退出登录<br><button onclick="location.reload()" style="margin-top:18px;padding:8px 28px;border-radius:8px;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;border:none;font-size:14px;cursor:pointer;">重新登录</button></div>';
+        return;
+      }
       if(!isFeishuEnv()){ log('③非飞书环境,跳过'); return Promise.resolve(null); }
 
       log('③等待SDK...');
@@ -1520,6 +1525,7 @@ function doLogout(){
   document.getElementById('appPage').classList.remove('active');
       // 飞书免登模式：退出即清除缓存，页面会自动重新走免登流程
       // 刷新页面触发重新免登
+        localStorage.setItem('manual_logout', '1');
       location.reload();
 
 
