@@ -102,7 +102,9 @@ window._resetLoginBtn = function(){
     return false;
   }
 
-  // 飞书企业 CorpId（必须填写！在飞书开放平台→开发者后台→企业信息里找）
+  // 飞书应用 App ID（用于 tt.config）
+  window._FEISHU_APP_ID = 'cli_aa888d30c978dbec';
+  // 飞书企业 CorpId（用于 requestAuthCode，可选）
   window._FEISHU_CORP_ID = 'FP5XGL5OZG7';
 
   // 显示飞书环境详细诊断信息（调试用）
@@ -170,7 +172,7 @@ window._resetLoginBtn = function(){
       }
       if(ttObj.config){
         ttObj.config({
-          appId: window._FEISHU_CORP_ID || '',
+          appId: window._FEISHU_APP_ID || '',
           timestamp: Math.floor(Date.now() / 1000),
           nonceStr: 'rand_' + Math.random().toString(36).substr(2, 8),
           signature: 'not_used',
@@ -246,7 +248,7 @@ window._resetLoginBtn = function(){
             onSuccess: function(res){
               if(done) return;
               done = true; clearTimeout(timeout);
-              fetch('https://vekkbgscqpppcluhfwrv.supabase.co/functions/v1/feishu-auth/login', {
+              fetch('https://chongfen.jaswamdsesm.workers.dev/feishu-auth/login', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({code: res.code})
@@ -1341,10 +1343,23 @@ const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
   initTheme(); // 初始化主题
 
-  const savedUser = localStorage.getItem(USER_KEY);
-  if (savedUser) {
-    safeEnterApp(savedUser);
-  }
+  // 飞书免登：优先尝试，成功则直接进系统，失败再走 localStorage
+  _feishuAutoLogin().then(function(feishuUser){
+    if(feishuUser && feishuUser.name){
+      // 免登成功，确保 currentUser 和 enterApp 可用
+      currentUser = feishuUser;
+      if(typeof enterApp === 'function'){
+        enterApp();
+        showToast('飞书免登录成功，欢迎 ' + feishuUser.name, 'success');
+      }
+    } else {
+      // 免登失败/非飞书环境，走本地登录态
+      const savedUser = localStorage.getItem(USER_KEY);
+      if (savedUser) {
+        safeEnterApp(savedUser);
+      }
+    }
+  });
 
   // 延迟检测：如果3秒后 supabaseClient 仍为 null，也显示警告
   setTimeout(function(){
