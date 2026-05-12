@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051217b'):('?_v=2026051217b');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051221b'):('?_v=2026051221b');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -59,14 +59,17 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
     });
   }
 
-  // 等待 SDK 注入完成（polling，对齐 feishu-order-inventory-system）
+  // 等待 SDK 注入完成（飞书 WebView 通常已注入，最多等 3 秒）
   function waitForSDK(ms){
-    ms = ms || 5000;
+    ms = ms || 3000;
     return new Promise(function(resolve, reject){
-      if(window.tt && window.tt.requestAuthCode){ resolve(); return; }
-      var timer = setTimeout(function(){ reject(new Error('SDK超时')); }, ms);
+      if(window.tt && (window.tt.requestAuthCode || window.tt.requestPermission)){ resolve(); return; }
+      var timer = setTimeout(function(){ 
+        console.warn('[免登] waitForSDK 超时，继续尝试...');
+        resolve();  // 超时也 resolve，不阻断流程
+      }, ms);
       var check = setInterval(function(){
-        if(window.tt && window.tt.requestAuthCode){
+        if(window.tt && (window.tt.requestAuthCode || window.tt.requestPermission)){
           clearTimeout(timer); clearInterval(check);
           resolve();
         }
@@ -103,37 +106,42 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
     return Promise.reject(new Error('requestAuthCode 不可用'));
   }
 
-  // 用 code 换用户信息（增强错误诊断）
+  // 用 code 换用户信息（增强错误诊断 + fetch timeout）
   function fetchUser(code){
     console.log('[免登] ⑥fetch→' + AUTH_URL);
+    // AbortController timeout (10s)
+    var _ac = new AbortController();
+    var _to = setTimeout(function(){ _ac.abort(); }, 10000);
     return fetch(AUTH_URL, {
       method: 'POST',
       mode: 'cors',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({code: code, app_id: APP_ID})
+      body: JSON.stringify({code: code, app_id: APP_ID}),
+      signal: _ac.signal
     }).then(function(r){
+      clearTimeout(_to);
       console.log('[免登] ⑥status:' + r.status);
-
       return r.json();
     }).catch(function(err){
-      var errMsg = String(err).substring(0, 120);
+      clearTimeout(_to);
+      var errMsg = String(err).substring(0, 200);
       console.error('[免登] ⑥fetch异常:', errMsg);
 
-      // 备用：尝试用 XMLHttpRequest
-
+      // 备用：尝试用 XMLHttpRequest（也加 timeout）
       return new Promise(function(resolve, reject){
         try {
           var xhr = new XMLHttpRequest();
           xhr.open('POST', AUTH_URL, true);
           xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.timeout = 10000;
           xhr.onreadystatechange = function(){
             if(xhr.readyState === 4){
               console.log('[免登] ⑥XHR status:' + xhr.status);
-
               if(xhr.status === 200){ try{ resolve(JSON.parse(xhr.responseText)); }catch(e){ reject(e); } }
               else { reject(new Error('XHR ' + xhr.status)); }
             }
           };
+          xhr.ontimeout = function(){ reject(new Error('XHR timeout')); };
           xhr.onerror = function(){ reject(new Error('XHR network error')); };
           xhr.send(JSON.stringify({code: code, app_id: 'cli_aa888d30c978dbec'}));
         } catch(e2){
@@ -177,8 +185,15 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
             // 飞书 user_id 是数字 ID（如 592631），open_id 是 ou_xxx 格式
             var _fuNumericId = String(fu.user_id || '');  // 飞书数字 user_id
             var _fuName = fu.name || '';
-            // 超管识别：按飞书数字 user_id > 名字匹配 > open_id 兜底
-            var _isAdminUser = (_fuNumericId === '592631' || _fuName === 'ALI' || _fuName === '用户592631' || _fuUid === '592631');
+            // 超管识别：feishu_user_id / user_id / name 三重匹配（Edge Function 可能返回不同字段名）
+            var _fuAllIds = [String(fu.user_id||''), String(fu.feishu_user_id||''), String(fu.uid||''), _fuName].join(',');
+            console.log('[免登] ⑦用户字段:', JSON.stringify(fu));
+            var _isAdminUser = (
+              String(fu.user_id||'') === '592631' ||
+              String(fu.feishu_user_id||'') === '592631' ||
+              _fuName === 'ALI' || _fuName === 'Thomas' ||
+              _fuUid === '592631'
+            );
             var _fuRole = _isAdminUser ? 'admin' : (fu.role || 'member');
             window.currentUser = { name: _fuName, uid: _fuUid, role: _fuRole };
             localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
@@ -221,9 +236,15 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
           if(res.data && res.data.length > 0){
             // 已存在 → 更新 name 和 role（防止改名或角色变更后不同步）
             var existing = res.data[0];
-            // ALI(592631) 强制保持超管身份（user_id + uid + 名字三重匹配）
+            // 超管识别：字段名兼容 feishu_user_id / user_id
             var _fuNumId = String(fu.user_id || '');
-            var _isSuper = (_fuNumId === '592631' || feishuUid === '592631' || name === 'ALI' || name === '用户592631');
+            var _fuFeishuId = String(fu.feishu_user_id || '');
+            var _isSuper = (
+              _fuNumId === '592631' ||
+              _fuFeishuId === '592631' ||
+              feishuUid === '592631' ||
+              name === 'ALI' || name === 'Thomas'
+            );
             var targetRole = _isSuper ? 'admin' : (fu.role || existing.role || 'member');
             if(existing.role !== targetRole && existing.name === name){
               sb.from('members').update({role: targetRole}).eq('uid', feishuUid).eq('name', name);
