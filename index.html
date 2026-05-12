@@ -191,14 +191,11 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
             // 飞书 user_id 是数字 ID（如 592631），open_id 是 ou_xxx 格式
             var _fuNumericId = String(fu.user_id || '');  // 飞书数字 user_id
             var _fuName = fu.name || '';
-            // 超管识别：feishu_user_id / user_id / name 三重匹配（Edge Function 可能返回不同字段名）
-            var _fuAllIds = [String(fu.user_id||''), String(fu.feishu_user_id||''), String(fu.uid||''), _fuName].join(',');
+            // 超管识别：优先用 Edge Function 返回的 is_admin（从飞书应用超管列表查询），fallback 到 name 匹配
             console.log('[免登] ⑦用户字段:', JSON.stringify(fu));
-            var _isAdminUser = (
-              String(fu.user_id||'') === '592631' ||
-              String(fu.feishu_user_id||'') === '592631' ||
-              _fuName === 'ALI' || _fuName === 'Thomas' ||
-              _fuUid === '592631'
+            var _isAdminUser = fu.is_admin === true || fu.is_admin === 'true' || (
+              // fallback：name 硬编码兜底
+              _fuName === 'ALI' || _fuName === 'Thomas'
             );
             var _fuRole = _isAdminUser ? 'admin' : (fu.role || 'member');
             window.currentUser = { name: _fuName, uid: _fuUid, role: _fuRole };
@@ -242,15 +239,8 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
           if(res.data && res.data.length > 0){
             // 已存在 → 更新 name 和 role（防止改名或角色变更后不同步）
             var existing = res.data[0];
-            // 超管识别：字段名兼容 feishu_user_id / user_id
-            var _fuNumId = String(fu.user_id || '');
-            var _fuFeishuId = String(fu.feishu_user_id || '');
-            var _isSuper = (
-              _fuNumId === '592631' ||
-              _fuFeishuId === '592631' ||
-              feishuUid === '592631' ||
-              name === 'ALI' || name === 'Thomas'
-            );
+            // 超管识别：优先用 is_admin 字段
+            var _isSuper = (fu.is_admin === true || fu.is_admin === 'true') || (name === 'ALI' || name === 'Thomas');
             var targetRole = _isSuper ? 'admin' : (fu.role || existing.role || 'member');
             if(existing.role !== targetRole && existing.name === name){
               sb.from('members').update({role: targetRole}).eq('uid', feishuUid).eq('name', name);
@@ -259,8 +249,7 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
             console.log('[免登同步] 成员已存在:', name, 'role=', existing.role);
           } else {
             // 不存在 → 自动注册为普通成员
-            var _fuNumId2 = String(fu.user_id || '');
-            var _isSuperNew = (_fuNumId2 === '592631' || feishuUid === '592631' || name === 'ALI' || name === '用户592631');
+            var _isSuperNew = (fu.is_admin === true || fu.is_admin === 'true') || (name === 'ALI' || name === 'Thomas');
             var defaultRole = _isSuperNew ? 'admin' : (fu.role || 'member');
             console.log('[免登同步] 新用户注册:', name, 'role=', defaultRole, 'uid=', feishuUid);
             return sb.from('members').insert({
