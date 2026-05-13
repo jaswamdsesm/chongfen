@@ -618,28 +618,15 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 
 /* ========== 移动端适配（飞书手机端 + 小屏） ========== */
 @media screen and (max-width: 768px){
-  /* 侧边栏变为顶部导航条 */
-  .sidebar{
-    width:100%;min-height:auto;position:fixed;top:0;left:0;right:0;
-    padding:8px 10px;flex-direction:row;z-index:1000;
-    border-right:none;border-bottom:1px solid rgba(148,163,184,.12);
-    overflow-x:auto;-webkit-overflow-scrolling:touch;
-  }
-  .sidebar-logo{font-size:14px;margin-bottom:0;margin-right:10px;white-space:nowrap;}
-  .sidebar-desc{display:none;}
-  .nav-item{
-    padding:7px 10px;font-size:12px;gap:6px;margin-bottom:0;white-space:nowrap;
-    flex-shrink:0;
-  }
-  .nav-icon{font-size:15px;width:auto;}
-  .sidebar-user{
-    margin-top:0;padding-top:0;border-top:none;margin-left:auto;
-    display:flex;align-items:center;gap:6px;
-  }
-  .user-name{font-size:11px;padding:2px 4px;white-space:nowrap;}
+  /* 隐藏桌面端导航，显示移动端下拉栏 */
+  .sidebar{width:100%;min-height:auto;position:fixed;top:0;left:0;right:0;
+    padding:8px 12px;z-index:1000;
+    border-right:none;border-bottom:1px solid rgba(148,163,184,.12);background:#1e293b;}
+  .sidebar-desktop{display:none !important;}
+  .sidebar-mobile{display:block !important;}
 
-  /* 主内容区：侧边栏不占宽度，加顶部间距 */
-  .main-content{margin-left:0;padding:56px 12px 16px;max-width:100%;}
+  /* 主内容区：无左侧间距，加顶部间距 */
+  .main-content{margin-left:0;padding:60px 12px 16px;max-width:100%;}
 
   /* 统计卡 */
   .stats-row{display:flex;flex-wrap:wrap;gap:8px !important;}
@@ -680,6 +667,9 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 
   /* 隐藏部分桌面元素 */
   .theme-toggle{top:58px;right:8px;padding:6px 10px;font-size:12px;}
+
+  /* 下拉选择器样式微调 */
+  #mobilePageSelect:focus{border-color:#6366f1;box-shadow:0 0 0 2px rgba(99,102,241,.15);}
 }
 /* 超小屏 (<400px) 进一步压缩 */
 @media screen and (max-width: 400px){
@@ -743,24 +733,38 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 <!-- 主应用 -->
 <div class="app" id="appPage">
   <aside class="sidebar" id="mainSidebar">
-    <div style="display:flex;align-items:center;width:100%;min-width:0;">
-      <button id="menuToggle" onclick="toggleMobileMenu()" style="display:none;flex-shrink:0;background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;padding:4px 6px;margin-right:8px;line-height:1;">☰</button>
-      <div style="min-width:0;overflow:hidden;">
-        <div class="sidebar-logo" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🧭 客户信息库</div>
-        <div class="sidebar-desc">防重复 · 全球号码</div>
+    <!-- 桌面端：正常侧边栏导航 -->
+    <div class="sidebar-desktop">
+      <div class="sidebar-logo">🧭 客户信息库</div>
+      <div class="sidebar-desc">防重复 · 全球号码 · 自动识别</div>
+      <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span>工作台</button>
+      <button class="nav-item" data-page="addCustomer" onclick="switchPage('addCustomer',this)"><span class="nav-icon">➕</span>添加客户</button>
+      <button class="nav-item" data-page="batchImport" onclick="switchPage('batchImport',this)"><span class="nav-icon">📥</span>批量导入</button>
+      <button class="nav-item" data-page="searchCustomer" onclick="switchPage('searchCustomer',this)"><span class="nav-icon">🔍</span>查询</button>
+      <button class="nav-item" data-page="myCustomers" onclick="switchPage('myCustomers',this)"><span class="nav-icon">👥</span>我的客户</button>
+      <button class="nav-item" data-page="allCustomers" onclick="switchPage('allCustomers',this)"><span class="nav-icon">📋</span>全部客户</button>
+      <button class="nav-item" data-page="profile" onclick="switchPage('profile',this)"><span class="nav-icon">👤</span>个人设置</button>
+      <button class="nav-item" id="navMemberMgr" data-page="memberManage" onclick="switchPage('memberManage',this)" style="display:none;"><span class="nav-icon">👥</span>成员管理</button>
+      <div class="sidebar-user">
+        <div class="user-name" id="sidebarUserName">当前用户：-</div>
       </div>
     </div>
-    <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span>工作台</button>
-    <button class="nav-item" data-page="addCustomer" onclick="switchPage('addCustomer',this)"><span class="nav-icon">➕</span>添加客户</button>
-    <button class="nav-item" data-page="batchImport" onclick="switchPage('batchImport',this)"><span class="nav-icon">📥</span>批量导入</button>
-    <button class="nav-item" data-page="searchCustomer" onclick="switchPage('searchCustomer',this)"><span class="nav-icon">🔍</span>查询</button>
-    <button class="nav-item" data-page="myCustomers" onclick="switchPage('myCustomers',this)"><span class="nav-icon">👥</span>我的客户</button>
-    <button class="nav-item" data-page="allCustomers" onclick="switchPage('allCustomers',this)"><span class="nav-icon">📋</span>全部客户</button>
-    <button class="nav-item" data-page="profile" onclick="switchPage('profile',this)"><span class="nav-icon">👤</span>个人设置</button>
-    <button class="nav-item" id="navMemberMgr" data-page="memberManage" onclick="switchPage('memberManage',this)" style="display:none;"><span class="nav-icon">👥</span>成员管理</button>
-    <div class="sidebar-user">
-      <div class="user-name" id="sidebarUserName" style="text-align:center;font-size:16px;padding:8px 0;">当前用户：-</div>
-      <!-- 退出登录按钮已移除：飞书环境无需退出 -->
+    <!-- 移动端：顶部下拉选择栏 -->
+    <div class="sidebar-mobile" id="mobileNav" style="display:none;">
+      <select id="mobilePageSelect" onchange="if(this.value){var btn=document.querySelector('.nav-item[data-page='+this.value+']'); if(btn) switchPage(this.value,btn); this.value='';}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.8);color:#e2e8f0;font-size:14px;outline:none;cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;">
+        <option value="">🧭 选择页面 ▼</option>
+        <option value="dashboard">📊 工作台</option>
+        <option value="addCustomer">➕ 添加客户</option>
+        <option value="batchImport">📥 批量导入</option>
+        <option value="searchCustomer">🔍 查询</option>
+        <option value="myCustomers">👤 我的客户</option>
+        <option value="allCustomers">📋 全部客户</option>
+        <option value="profile">⚙️ 个人设置</option>
+        <option value="memberManage" id="mobileMemberOpt" style="display:none;">👥 成员管理</option>
+      </select>
+      <div style="text-align:center;padding:4px 0;">
+        <span class="user-name" id="sidebarUserNameMobile" style="font-size:11px;color:#94a3b8;">当前用户：-</span>
+      </div>
     </div>
   </aside>
 
@@ -1659,17 +1663,21 @@ function enterApp(){
   document.getElementById('sidebarUserName').textContent='当前用户：' + _showName;
   if(_showName && _showName !== currentUser.name) currentUser.displayName = _showName;
 
-  // 移动端适配：显示汉堡按钮
-  if(window.innerWidth <= 768){
-    var _mt = document.getElementById('menuToggle');
-    if(_mt) _mt.style.display='';
-    // 默认折叠菜单（手机端空间有限）
-    setTimeout(function(){ if(typeof toggleMobileMenu === 'function') toggleMobileMenu(); }, 300);
+  // 移动端：同步用户名到移动端导航栏
+  var _mobileUN = document.getElementById('sidebarUserNameMobile');
+  if(_mobileUN) _mobileUN.textContent = '当前用户：' + _showName;
+
+  // 成员管理选项同步
+  function _syncMobileMemberOpt(){
+    var mmBtn = document.getElementById('navMemberMgr');
+    var mmOpt = document.getElementById('mobileMemberOpt');
+    if(mmBtn && mmOpt) mmOpt.style.display = mmBtn.style.display !== 'none' ? '' : 'none';
   }
-  window.addEventListener('resize', function(){
-    var btn = document.getElementById('menuToggle');
-    if(btn) btn.style.display = window.innerWidth <= 768 ? '' : 'none';
-  });
+  _syncMobileMemberOpt();
+  // 监听显示变化（管理员登录后异步显示）
+  var _mmObs = new MutationObserver(_syncMobileMemberOpt);
+  var _mmBtnEl = document.getElementById('navMemberMgr');
+  if(_mmBtnEl) _mmObs.observe(_mmBtnEl, {attributes:true,attributeFilter:['style']});
 
   // 所有用户显示国家饼图
   document.getElementById('countryChartCard').style.display='';
