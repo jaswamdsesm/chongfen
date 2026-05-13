@@ -250,48 +250,57 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
     var feishuUid = fu.feishu_user_id || fu.uid || '';
     var name = fu.name || '';
     if(!feishuUid || !name || !window.supabaseClient){ return; }
+    
+    // 超管识别
+    var _fuNumId = String(fu.user_id || '');
+    var _isSuper = (fu.is_admin === true || fu.is_admin === 'true') || (name === 'ALI' || name === 'Thomas' || _fuNumId === '592631' || feishuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd');
+    var targetRole = _isSuper ? 'admin' : (fu.role || 'member');
+
     // 延迟执行，确保 supabaseClient 已初始化
     setTimeout(function(){
       try {
         var sb = window.supabaseClient;
-        // 查询是否已存在
-        sb.from('members').select('uid,name,role').eq('uid', feishuUid)
+        // 先用 uid 查询，再用 name 兜底查询（兼容旧数据 uid 格式不一致）
+        sb.from('members').select('uid,name,role').or('uid.eq.' + feishuUid + ',name.eq.' + name)
         .then(function(res){
           if(res.error){ console.warn('[免登同步] 查询失败:', res.error); return; }
           if(res.data && res.data.length > 0){
-            // 已存在 → 更新 name 和 role（防止改名或角色变更后不同步）
+            // 已存在 → 更新 uid（如果格式变了）和 role
             var existing = res.data[0];
-            // 超管识别：优先用 is_admin 字段，fallback 到 name / user_id / open_id
-            var _fuNumId = String(fu.user_id || '');
-            var _isSuper = (fu.is_admin === true || fu.is_admin === 'true') || (name === 'ALI' || name === 'Thomas' || _fuNumId === '592631' || feishuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd');
-            var targetRole = _isSuper ? 'admin' : (fu.role || existing.role || 'member');
-            if(existing.role !== targetRole && existing.name === name){
-              sb.from('members').update({role: targetRole}).eq('uid', feishuUid).eq('name', name);
-              console.log('[免登同步] 角色更新:', name, existing.role, '→', targetRole);
-            }
-            console.log('[免登同步] 成员已存在:', name, 'role=', existing.role);
+            var updateObj = { role: targetRole };
+            // 如果 uid 变了（从数字ID变成open_id），更新uid字段
+            if(existing.uid !== feishuUid) { updateObj.uid = feishuUid; }
+            sb.from('members').update(updateObj).eq('id', existing.id)
+            .then(function(uRes){
+              if(uRes.error){
+                console.warn('[免登同步] 更新失败:', uRes.error);
+              } else {
+                console.log('[免登同步] ✅ 成员已更新:', existing.name, 'uid:', existing.uid, '→', feishuUid, 'role=', targetRole);
+                // 如果当前登录用户就是这个人且角色变了，更新 currentUser
+                if(window.currentUser && (window.currentUser.uid === feishuUid || window.currentUser.name === existing.name)){
+                  if(window.currentUser.role !== targetRole){
+                    window.currentUser.role = targetRole;
+                    localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
+                  }
+                }
+              }
+            });
           } else {
-            // 不存在 → 自动注册为普通成员
-            var _isSuperNew = (fu.is_admin === true || fu.is_admin === 'true') || (name === 'ALI' || name === 'Thomas');
-            var _fuNumId2 = String(fu.user_id || '');
-            _isSuperNew = _isSuperNew || _fuNumId2 === '592631' || feishuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd';
-            var _fuNumId2 = String(fu.user_id || '');
-            var defaultRole = _isSuperNew ? 'admin' : (fu.role || 'member');
-            console.log('[免登同步] 新用户注册:', name, 'role=', defaultRole, 'uid=', feishuUid);
+            // 不存在 → 自动注册
+            console.log('[免登同步] 新用户注册:', name, 'role=', targetRole, 'uid=', feishuUid);
             return sb.from('members').insert({
               uid: feishuUid,
               name: name,
-              password: '',  // 飞书用户无本地密码
-              role: defaultRole,
+              password: '',
+              role: targetRole,
               created_at: _cnISO()
             }).then(function(insRes){
               if(insRes.error){
                 console.warn('[免登同步] 注册失败:', insRes.error);
               } else {
-                console.log('[免登同步] ✅ 自动注册成功:', name, 'role=', defaultRole);
-                // 如果当前登录用户就是这个人且角色变了，更新 currentUser
-                if(window.currentUser && window.currentUser.uid === feishuUid && window.currentUser.role !== defaultRole){
-                  window.currentUser.role = defaultRole;
+                console.log('[免登同步] ✅ 自动注册成功:', name, 'role=', targetRole);
+                if(window.currentUser && window.currentUser.uid === feishuUid && window.currentUser.role !== targetRole){
+                  window.currentUser.role = targetRole;
                   localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
                   showToast('欢迎首次使用，已自动注册为「'+name+'」','success');
                 }
@@ -3372,6 +3381,20 @@ function loadProfile(){
   var el1=document.getElementById('profileCurrentName');
   if(el1) el1.value = currentUser.name || '';
   document.getElementById('profileNewName').value = '';
+  
+  // 如果已改名过，隐藏改名表单
+  var userKey = currentUser.uid || currentUser.name;
+  if(localStorage.getItem('crm_name_renamed_' + userKey)){
+    var nameForm = document.querySelector('#secProfile .form-group');
+    if(nameForm && nameForm.nextElementSibling && nameForm.nextElementSibling.tagName === 'DIV' 
+       && nameForm.nextElementSibling.style.display !== 'none'){
+      // 隐藏新名称输入框和保存按钮区域（保留当前名称显示）
+    }
+    var newLabel = document.getElementById('profileNewName');
+    if(newLabel) { newLabel.disabled=true; newLabel.placeholder='已使用改名机会'; }
+    var saveBtn = document.querySelector('#secProfile button[onclick="saveProfileName()"]');
+    if(saveBtn) { saveBtn.style.display='none'; saveBtn.textContent='已修改（仅超管可重置）'; }
+  }
 }
 
 async function saveProfileName(){
@@ -3379,7 +3402,14 @@ async function saveProfileName(){
   if(!newName){showToast('请输入新名称','error');return;}
   if(newName === currentUser.name){showToast('名称未变化','error');return;}
 
-  if(!confirm(`确定将「${currentUser.name}」改为「${newName}」？\n\n改名后，你所有已录入客户的归属显示都会同步更新。`)){
+  // 检查是否已经改过名字（name_renamed 标记）
+  var userKey = currentUser.uid || currentUser.name;
+  if(localStorage.getItem('crm_name_renamed_' + userKey)){
+    showToast('⚠️ 名称只能修改一次，如需修改请联系超管在成员管理中重置','warning');
+    return;
+  }
+
+  if(!confirm(`确定将「${currentUser.name}」改为「${newName}」？\n\n⚠️ 改名机会只有一次，请确认无误。`)){
     return;
   }
 
@@ -3404,8 +3434,11 @@ async function saveProfileName(){
     const oldName = currentUser.name;
     currentUser.name = newName;
     localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+    
+    // 标记已改名（只允许改一次）
+    localStorage.setItem('crm_name_renamed_' + userKey, '1');
 
-    // 3. 更新侧边栏显示
+    // 4. 更新侧边栏显示
     document.getElementById('sidebarUserName').textContent = `当前用户：${newName}`;
     document.getElementById('profileCurrentName').value = newName;
     document.getElementById('profileNewName').value = '';
@@ -3791,7 +3824,7 @@ async function loadMemberList(){
           // 非 admin 成员 → 显示三级下拉选择
           roleSelectForAdmin = `<select onchange="switchMemberRole('${m.uid}','${escHtml(m.name)}',this.value,this)" class="role-select" data-current="${m.role}" style="padding:5px 8px;border-radius:6px;border:1px solid rgba(99,102,241,.35);background:rgba(99,102,241,.12);color:#c7d2fe;font-size:12px;outline:none;cursor:pointer;"><option value="admin">超管</option><option value="manager" ${m.role==='manager'?'selected':''}>管理员</option><option value="member" ${m.role==='member'?'selected':''}>普通成员</option></select>`;
         }
-        actionCell = `${roleSelectForAdmin}<button class="btn btn-sm btn-danger" onclick="deleteMember('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;">删除</button>`;
+        actionCell = `${roleSelectForAdmin}<button class="btn btn-sm" onclick="resetMemberName('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;padding:3px 8px;border-radius:5px;background:transparent;color:#f59e0b;border:1px solid rgba(245,158,11,.3);cursor:pointer;font-size:11px;">重置名</button><button class="btn btn-sm btn-danger" onclick="deleteMember('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;">删除</button>`;
       } else if(isManager()){
         // 二级管理员：可查看数据，但不能改角色或删除
         actionCell = ``;
@@ -3881,6 +3914,41 @@ async function doAddMember(){
   } catch(err){
     console.error('添加成员失败:', err);
     showToast('添加失败：'+(err.message||JSON.stringify(err)),'error');
+  }
+}
+
+/** 超管重置成员名称（清除改名标记，允许用户再次改名） */
+async function resetMemberName(memberUid, memberName){
+  if(!isAdmin()){ showToast('仅超管可重置名称','error'); return; }
+  var newName = prompt('请输入「' + memberName + '」的新名称：', memberName);
+  if(!newName || newName.trim() === ''){ showToast('已取消','info'); return; }
+  newName = newName.trim();
+  if(newName === memberName){ showToast('名称未变化','error'); return; }
+
+  try{
+    // 1. 更新 members 表
+    const{error: memErr}=await supabaseClient.from('members').update({name: newName}).eq('uid', memberUid).eq('name', memberName);
+    if(memErr) throw memErr;
+    
+    // 2. 更新 customers 表的 owner_name
+    await supabaseClient.from('customers').update({owner_name: newName, updated_at: _cnISO()}).eq('owner_uid', memberUid);
+    
+    // 3. 清除该用户的改名标记（用 uid 和 name 都试一下）
+    localStorage.removeItem('crm_name_renamed_' + memberUid);
+    localStorage.removeItem('crm_name_renamed_' + memberName);
+    
+    // 4. 如果重置的是当前用户，同步更新本地
+    if(currentUser.uid === memberUid || currentUser.name === memberName){
+      currentUser.name = newName;
+      localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+      document.getElementById('sidebarUserName').textContent = '当前用户：' + newName;
+      document.getElementById('profileCurrentName').value = newName;
+    }
+
+    showToast('✅「'+memberName+'」已重置为「'+newName+'」，该用户可重新修改一次','success');
+    loadMemberList();
+  } catch(err){
+    showToast('重置失败：'+(err.message||JSON.stringify(err)),'error');
   }
 }
 
