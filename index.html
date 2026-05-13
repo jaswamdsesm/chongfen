@@ -266,9 +266,8 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
   window._FEISHU_BIND_MAP = {
     // FD 飞书账号 → 绑定到 ZY (uid:123, name:ZY, role:manager)
     'FD': { uid: '123', name: 'ZY', role: 'manager' },
-    // 如果后续拿到 FD 的 open_id 或 user_id，可以再加：
-    // 'ou_xxxxxxxxx': { uid: '123', name: 'ZY', role: 'manager' },
-    // 'fd_numeric_user_id': { uid: '123', name: 'ZY', role: 'manager' },
+    // ZHU 飞书账号 → 绑定到已有成员 ZHU (uid:123, name:ZHU, role:manager)
+    'ZHU': { uid: '123', name: 'ZHU', role: 'manager' },
   };
 
   window._syncFeishuUserToMembers = function(fu){
