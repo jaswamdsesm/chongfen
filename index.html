@@ -3823,7 +3823,7 @@ async function loadMemberList(){
           roleSelectForAdmin = '<span style="color:#ef4444;font-size:12px;">超管</span>';
         } else {
           // 非 admin 成员 → 显示三级下拉选择
-          roleSelectForAdmin = `<select onchange="switchMemberRole('${m.uid}','${escHtml(m.name)}',this.value,this)" class="role-select" data-current="${m.role}" style="padding:5px 8px;border-radius:6px;border:1px solid rgba(99,102,241,.35);background:rgba(99,102,241,.12);color:#c7d2fe;font-size:12px;outline:none;cursor:pointer;"><option value="admin">超管</option><option value="manager" ${m.role==='manager'?'selected':''}>管理员</option><option value="member" ${m.role==='member'?'selected':''}>普通成员</option></select>`;
+          roleSelectForAdmin = `<select onchange="switchMemberRole('${m.uid}','${escHtml(m.name)}',this.value,this)" class="role-select" data-current="${m.role}" style="padding:5px 8px;border-radius:6px;border:1px solid rgba(99,102,241,.35);background:rgba(99,102,241,.12);color:#c7d2fe;font-size:12px;outline:none;cursor:pointer;"><option value="manager" ${m.role==='manager'?'selected':''}>管理员</option><option value="member" ${m.role==='member'?'selected':''}>普通成员</option></select>`;
         }
         actionCell = `${roleSelectForAdmin}<button class="btn btn-sm" onclick="resetMemberName('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;padding:3px 8px;border-radius:5px;background:transparent;color:#f59e0b;border:1px solid rgba(245,158,11,.3);cursor:pointer;font-size:11px;">重置名</button><button class="btn btn-sm btn-danger" onclick="deleteMember('${m.uid}','${escHtml(m.name)}')" style="margin-left:4px;">删除</button>`;
       } else if(isManager()){
