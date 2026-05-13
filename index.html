@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>客户信息库 v5.25</title>
+<title>客户管理系统</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -704,15 +704,50 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 
 /* ========== 移动端适配（飞书手机端 + 小屏） ========== */
 @media screen and (max-width: 768px){
-  /* 隐藏桌面端导航，显示移动端下拉栏 */
+  /* 隐藏桌面端侧边栏 */
   .sidebar{width:100%;min-height:auto;position:fixed;top:0;left:0;right:0;
     padding:8px 12px;z-index:1000;
     border-right:none;border-bottom:1px solid rgba(148,163,184,.12);background:#1e293b;}
   .sidebar-desktop{display:none !important;}
-  .sidebar-mobile{display:block !important;}
+  .sidebar-mobile{display:none !important;}
+  .mobile-tab-bar{display:flex !important;}
 
-  /* 主内容区：无左侧间距，加顶部间距 */
-  .main-content{margin-left:0;padding:60px 12px 16px;max-width:100%;}
+  /* 主内容区：无左侧间距，加顶部和底部间距 */
+  .main-content{margin-left:0;padding:60px 12px 80px;max-width:100%;}
+
+  /* 底部 Tab 栏 */
+  .mobile-tab-bar{
+    position:fixed;bottom:0;left:0;right:0;z-index:999;display:none;
+    background:#1e293b;border-top:1px solid rgba(148,163,184,.15);
+    padding:6px 8px max(6px,env(safe-area-inset-bottom));
+    justify-content:space-around;align-items:center;gap:2px;
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  }
+  .mobile-tab{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:6px 2px;border-radius:10px;border:none;background:none;color:#64748b;
+    font-size:20px;cursor:pointer;transition:all .15s;min-width:0;position:relative;
+  }
+  .mobile-tab.active{color:#818cf8}
+  .mobile-tab:active{transform:scale(.9)}
+  .mobile-tab-theme .theme-icon{font-size:18px}
+  .mobile-tab-more{font-size:18px;font-weight:700;letter-spacing:-1px}
+
+  /* 更多菜单浮层 */
+  .mobile-more-menu{
+    display:none;position:absolute;bottom:56px;right:8px;z-index:998;
+    background:#1e293b;border:1px solid rgba(148,163,184,.2);border-radius:14px;
+    padding:6px 0;min-width:150px;box-shadow:0 -4px 24px rgba(0,0,0,.35);
+    animation:mobMoreIn .2s ease-out;
+  }
+  .mobile-more-menu.show{display:block}
+  @keyframes mobMoreIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .mobile-more-item{
+    display:block;width:100%;padding:11px 16px;border:none;background:none;color:#cbd5e1;
+    font-size:13.5px;cursor:pointer;text-align:left;transition:background .15s;
+  }
+  .mobile-more-item:hover,.mobile-more-item:active{background:rgba(99,102,241,.12);color:#c7d2fe}
+  .more-divider{height:1px;background:rgba(148,163,184,.12);margin:4px 0}
 
   /* 统计卡 */
   .stats-row{display:flex;flex-wrap:wrap;gap:8px !important;}
@@ -751,7 +786,12 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
   /* 国家图表 */
   #countryPieCanvas{max-width:160px;max-height:160px;}
 
-  /* 隐藏部分桌面元素 - 登录页主题按钮位置调整 */
+  body.light-mode .mobile-tab-bar{background:rgba(255,255,255,.95);border-top-color:#e2e8f0}
+  body.light-mode .mobile-tab{color:#94a3b8}
+  body.light-mode .mobile-tab.active{color:#4338ca}
+  body.light-mode .mobile-more-menu{background:#fff;border-color:#e2e8f0;box-shadow:0 -4px 24px rgba(0,0,0,.1)}
+  body.light-mode .mobile-more-item{color:#475569}
+  body.light-mode .mobile-more-item:hover{background:rgba(99,102,241,.06)}
 
   /* 下拉选择器样式微调 */
   #mobilePageSelect:focus{border-color:#6366f1;box-shadow:0 0 0 2px rgba(99,102,241,.15);}
@@ -770,7 +810,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 <!-- 全屏 Loading（初始化/免登期间显示） -->
 <div id="appLoadingOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 50%,#0f172a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99998;transition:opacity .4s ease-out;">
   <div style="width:48px;height:48px;border:3px solid rgba(99,102,241,.2);border-top-color:#818cf8;border-radius:50%;animation:spin .7s linear infinite;"></div>
-  <p style="margin-top:20px;font-size:15px;color:#c7d2fe;font-weight:500;letter-spacing:.5px;">正在加载客户信息库...</p>
+  <p style="margin-top:20px;font-size:15px;color:#c7d2fe;font-weight:500;letter-spacing:.5px;">正在加载客户管理系统...</p>
   <p style="margin-top:8px;font-size:12px;color:#6366f1;" id="appLoadingSub">初始化中</p>
 </div>
 <style>
@@ -820,7 +860,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
   <aside class="sidebar" id="mainSidebar">
     <!-- 桌面端：正常侧边栏导航 -->
     <div class="sidebar-desktop">
-      <div class="sidebar-logo">🧭 客户信息库</div>
+      <div class="sidebar-logo">🧭 客户管理系统</div>
       <div class="sidebar-desc">防重复 · 全球号码 · 自动识别</div>
       <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span>工作台</button>
       <button class="nav-item" data-page="addCustomer" onclick="switchPage('addCustomer',this)"><span class="nav-icon">➕</span>添加客户</button>
@@ -836,22 +876,21 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
         <div class="user-name" id="sidebarUserName">当前用户：-</div>
       </div>
     </div>
-    <!-- 移动端：顶部下拉选择栏 -->
-    <div class="sidebar-mobile" id="mobileNav" style="display:none;">
-      <select id="mobilePageSelect" onchange="if(this.value==='__theme__'){toggleTheme();this.value='';return;}if(this.value){var btn=document.querySelector('.nav-item[data-page='+this.value+']'); if(btn) switchPage(this.value,btn); this.value='';}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.8);color:#e2e8f0;font-size:14px;outline:none;cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;">
-        <option value="">🧭 选择页面 ▼</option>
-        <option value="dashboard">📊 工作台</option>
-        <option value="addCustomer">➕ 添加客户</option>
-        <option value="batchImport">📥 批量导入</option>
-        <option value="searchCustomer">🔍 查询</option>
-        <option value="myCustomers">👤 我的客户</option>
-        <option value="allCustomers">📋 全部客户</option>
-        <option value="profile">⚙️ 个人设置</option>
-        <option value="memberManage" id="mobileMemberOpt" style="display:none;">👥 成员管理</option>
-        <option value="__theme__">🌙 切换日间/夜间</option>
-      </select>
-      <div style="text-align:center;padding:4px 0;">
-        <span class="user-name" id="sidebarUserNameMobile" style="font-size:11px;color:#94a3b8;">当前用户：-</span>
+    <!-- 移动端：底部 Tab 栏 -->
+    <div class="mobile-tab-bar" id="mobileNavBar" style="display:none;">
+      <button class="mobile-tab active" data-page="dashboard" onclick="switchMobileTab('dashboard',this)">📊</button>
+      <button class="mobile-tab" data-page="addCustomer" onclick="switchMobileTab('addCustomer',this)">➕</button>
+      <button class="mobile-tab" data-page="searchCustomer" onclick="switchMobileTab('searchCustomer',this)">🔍</button>
+      <button class="mobile-tab" data-page="myCustomers" onclick="switchMobileTab('myCustomers',this)">👤</button>
+      <button class="mobile-tab" data-page="allCustomers" onclick="switchMobileTab('allCustomers',this)">📋</button>
+      <button class="mobile-tab mobile-tab-theme" onclick="toggleTheme()" title="切换主题"><span class="theme-icon" id="mobileThemeIcon">🌙</span></button>
+      <button class="mobile-tab mobile-tab-more" onclick="toggleMobileMore()">⋯</button>
+      <!-- 更多菜单（展开） -->
+      <div class="mobile-more-menu" id="mobileMoreMenu">
+        <button class="mobile-more-item" onclick="switchMobileTab('batchImport',this); toggleMobileMore();">📥 批量导入</button>
+        <button class="more-divider"></button>
+        <button class="mobile-more-item" onclick="switchMobileTab('profile',this); toggleMobileMore();">⚙️ 个人设置</button>
+        <button class="mobile-more-item" id="mobileMemberBtn" style="display:none;" onclick="switchMobileTab('memberManage',this); toggleMobileMore();">👥 成员管理</button>
       </div>
     </div>
   </aside>
@@ -1414,23 +1453,25 @@ function toggleTheme(){
   const body = document.body;
   const isLight = body.classList.contains('light-mode');
 
-  // Update ALL theme toggle buttons (login + sidebar nav)
-  const allToggles = document.querySelectorAll('#loginThemeToggle, .nav-theme-btn, .theme-toggle:not(.nav-theme-btn)');
+  // Update ALL theme toggle buttons (login + sidebar nav + mobile tab)
+  const allToggles = document.querySelectorAll('#loginThemeToggle, .nav-theme-btn, .theme-toggle:not(.nav-theme-btn), #mobileThemeIcon');
   
   if(isLight){
     body.classList.remove('light-mode');
-    allToggles.forEach(btn => {
-      const icon=btn.querySelector('.theme-icon'), txt=btn.querySelector('.theme-text');
+    allToggles.forEach(el => {
+      if(el.id === 'mobileThemeIcon'){ el.textContent='🌙'; return; }
+      const icon=el.querySelector('.theme-icon'), txt=el.querySelector('.theme-text');
       if(icon) icon.textContent='🌙';
-      if(txt) txt.textContent = btn.classList.contains('nav-theme-btn') ? '夜间模式' : '夜间';
+      if(txt) txt.textContent = el.classList.contains('nav-theme-btn') ? '夜间模式' : '夜间';
     });
     localStorage.setItem(THEME_KEY, 'dark');
   } else {
     body.classList.add('light-mode');
-    allToggles.forEach(btn => {
-      const icon=btn.querySelector('.theme-icon'), txt=btn.querySelector('.theme-text');
+    allToggles.forEach(el => {
+      if(el.id === 'mobileThemeIcon'){ el.textContent='☀️'; return; }
+      const icon=el.querySelector('.theme-icon'), txt=el.querySelector('.theme-text');
       if(icon) icon.textContent='☀️';
-      if(txt) txt.textContent = btn.classList.contains('nav-theme-btn') ? '日间模式' : '日间';
+      if(txt) txt.textContent = el.classList.contains('nav-theme-btn') ? '日间模式' : '日间';
     });
     localStorage.setItem(THEME_KEY, 'light');
   }
@@ -1453,16 +1494,19 @@ function initTheme(){
     document.body.classList.add('light-mode');
   }
   
-  // Update ALL theme buttons (login + sidebar nav)
-  document.querySelectorAll('#loginThemeToggle, .nav-theme-btn, .theme-toggle:not(.nav-theme-btn)').forEach(btn => {
-    const icon=btn.querySelector('.theme-icon'), txt=btn.querySelector('.theme-text');
+  // Update ALL theme buttons (login + sidebar nav + mobile tab)
+  document.querySelectorAll('#loginThemeToggle, .nav-theme-btn, .theme-toggle:not(.nav-theme-btn), #mobileThemeIcon').forEach(el => {
+    if(el.id === 'mobileThemeIcon'){ el.textContent = isLight?'☀️':'🌙'; return; }
+    const icon=el.querySelector('.theme-icon'), txt=el.querySelector('.theme-text');
     if(icon && txt){
       icon.textContent=isLight?'☀️':'🌙';
       txt.textContent = isLight 
-        ? (btn.classList.contains('nav-theme-btn') ? '日间模式' : '日间')
-        : (btn.classList.contains('nav-theme-btn') ? '夜间模式' : '夜间');
+        ? (el.classList.contains('nav-theme-btn') ? '日间模式' : '日间')
+        : (el.classList.contains('nav-theme-btn') ? '夜间模式' : '夜间');
     }
   });
+  var mti = document.getElementById('mobileThemeIcon');
+  if(mti) mti.textContent = isLight?'☀️':'🌙';
 }
 
 // ========== Supabase 配置（已预填） ==========
@@ -1819,13 +1863,31 @@ function switchPage(pageId,btnEl){
   document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('sec'+pageId.charAt(0).toUpperCase()+pageId.slice(1)).classList.add('active');
-  btnEl.classList.add('active');
+  if(btnEl) btnEl.classList.add('active');
+  // 同步移动端 Tab 高亮
+  document.querySelectorAll('.mobile-tab').forEach(t=>t.classList.remove('active'));
+  const mobTab = document.querySelector('.mobile-tab[data-page="'+pageId+'"]');
+  if(mobTab) mobTab.classList.add('active');
   if(pageId==='dashboard')loadDashboardStats();
   else if(pageId==='myCustomers')loadMyCustomers();
   else if(pageId==='allCustomers')loadAllCustomers();
   else if(pageId==='profile')loadProfile();
   else if(pageId==='memberManage')loadMemberList();
   else if(pageId==='orderManage'){resetOrderForm();loadOrders();}
+}
+
+/** 移动端 Tab 切换 */
+function switchMobileTab(pageId, btnEl){
+  // 关闭更多菜单
+  var mm = document.getElementById('mobileMoreMenu');
+  if(mm) mm.classList.remove('show');
+  switchPage(pageId, btnEl);
+}
+
+/** 移动端更多菜单开关 */
+function toggleMobileMore(){
+  var m = document.getElementById('mobileMoreMenu');
+  if(m) m.classList.toggle('show');
 }
 
 // ============================================================
@@ -4005,7 +4067,7 @@ function _refreshAuthUI(){
     var nm = document.getElementById('navMemberMgr');
     if(nm) nm.style.display = isManager() ? '' : 'none';
     // 移动端成员管理选项
-    var mo = document.getElementById('mobileMemberOpt');
+    var mo = document.getElementById('mobileMemberOpt') || document.getElementById('mobileMemberBtn');
     if(mo) mo.style.display = isManager() ? '' : 'none';
     // 销售汇总卡片
     var ac = document.getElementById('adminSummaryCard');
