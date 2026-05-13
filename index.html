@@ -4002,8 +4002,8 @@ async function loadMemberList(){
     c.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>未连接</div>'; return;
   }
 
-  if(!isAdmin()){
-    c.innerHTML = '<div class="empty-state"><div class="icon">🔒</div>无权限访问</div>'; return;
+  if(!isManager()){
+    c.innerHTML = '<div class="empty-state"><div class="icon">🔒</div>无权限访问（仅管理员可查看）</div>'; return;
   }
 
   c.innerHTML = '<div class="loading"><span class="spinner"></span>加载中...</div>';
