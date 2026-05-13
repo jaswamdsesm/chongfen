@@ -219,7 +219,7 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
               _fuNumericId === '592631' ||
               _fuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd'
             );
-            var _fuRole = _isAdminUser ? 'admin' : (_preBind && _preBind.role ? _preBind.role : (fu.role || 'member'));
+            var _fuRole = _isAdminUser ? 'admin' : (fu.role || 'member'); // 预绑定不强制覆盖role，等异步从DB同步真实角色
             // 恢复用户之前保存的显示名称（多key fallback）
             var _savedDN = localStorage.getItem('crm_display_name_' + _fuUid)
               || localStorage.getItem('crm_display_name_' + _fuName)
@@ -305,16 +305,22 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
 
             // 绑定模式：同时更新 currentUser 为目标成员信息
             if(_bind && window.currentUser){
+              var _oldRole = window.currentUser.role;
               window.currentUser.uid = existing.uid;
               window.currentUser.name = _targetName;
               window.currentUser.role = targetRole;
               localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
-              console.log('[免登同步] 🔗 绑定模式：当前用户→', _targetName, '('+existing.uid+')');
+              console.log('[免登同步] 🔗 绑定模式：当前用户→', _targetName, '('+existing.uid+') role='+targetRole);
               // 更新侧边栏显示
               var sun = document.getElementById('sidebarUserName');
               if(sun) sun.textContent = '当前用户：' + _targetName;
               var sunM = document.getElementById('sidebarUserNameMobile');
               if(sunM) sunM.textContent = '当前用户：' + _targetName;
+              // ★ 角色变化时刷新权限相关UI（按钮显隐、表格重绘）
+              if(_oldRole !== targetRole){
+                console.log('[免登同步] 🔄 角色变化:', _oldRole, '→', targetRole, '刷新权限UI');
+                _refreshAuthUI();
+              }
             }
 
             sb.from('members').update(updateObj).eq('id', existing.id)
@@ -328,6 +334,7 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
                   if(window.currentUser.role !== targetRole){
                     window.currentUser.role = targetRole;
                     localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
+                    _refreshAuthUI();
                   }
                 }
               }
@@ -3961,6 +3968,25 @@ function isAdmin(){
 /** 判断是否为管理员（二级，含超管和管理员：成员管理、销售汇总可见） */
 function isManager(){
   return currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager');
+}
+
+/** 刷新权限相关UI（角色变化后调用：按钮显隐、表格重绘等） */
+function _refreshAuthUI(){
+  try {
+    // 成员管理按钮
+    var nm = document.getElementById('navMemberMgr');
+    if(nm) nm.style.display = isManager() ? '' : 'none';
+    // 移动端成员管理选项
+    var mo = document.getElementById('mobileMemberOpt');
+    if(mo) mo.style.display = isManager() ? '' : 'none';
+    // 销售汇总卡片
+    var ac = document.getElementById('adminSummaryCard');
+    if(ac) ac.style.display = isManager() ? '' : 'none';
+    // 如果当前在客户列表页，重绘以应用脱敏
+    if(typeof loadMyCustomers === 'function') loadMyCustomers();
+    if(typeof loadAllCustomers === 'function' && document.getElementById('secAllCustomers').classList.contains('active')) loadAllCustomers();
+    console.log('[权限] UI已刷新, role='+currentUser.role+' isManager='+isManager());
+  } catch(e){ console.warn('[权限] 刷新UI异常:', e); }
 }
 
 /** 加载成员列表（从 members 表读取） */
