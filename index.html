@@ -206,7 +206,7 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
               || (_fuName ? window._FEISHU_BIND_MAP[_fuName] : null)
             ) || null;
             if(_preBind){
-              console.log('[免登] 🔗 预绑定命中:', _fuName, '→', _preBind.name, '('+_preBind.uid+')');
+              console.log('[免登] 🔗 预绑定命中:', _fuName, '→', _preBind.name, '('+_preBind.uid+')', 'role='+(_preBind.role||'inherit'));
               _fuName = _preBind.name || _fuName;  // 显示名直接用目标名
               // 注意：uid 先保持原始 open_id（用于后续异步同步），显示名已替换
             }
@@ -219,7 +219,7 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
               _fuNumericId === '592631' ||
               _fuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd'
             );
-            var _fuRole = _isAdminUser ? 'admin' : (fu.role || 'member');
+            var _fuRole = _isAdminUser ? 'admin' : (_preBind && _preBind.role ? _preBind.role : (fu.role || 'member'));
             // 恢复用户之前保存的显示名称（多key fallback）
             var _savedDN = localStorage.getItem('crm_display_name_' + _fuUid)
               || localStorage.getItem('crm_display_name_' + _fuName)
@@ -260,13 +260,13 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
   // 免登成功后，自动同步用户到 members 表（新员工默认 role=member）
   // ALI (feishu_user_id=592631) 固定为超管 admin
   // 飞书身份 → 已有成员的绑定映射表（管理员配置）
-  // 格式: "飞书open_id/飞书name/数字user_id": { uid: "目标uid", name: "显示名" }
+  // 格式: "飞书open_id/飞书name/数字user_id": { uid: "目标uid", name: "显示名", role: "目标角色(可选)" }
   window._FEISHU_BIND_MAP = {
-    // FD 飞书账号 → 绑定到 ZY (uid:123, name:ZY)
-    'FD': { uid: '123', name: 'ZY' },
+    // FD 飞书账号 → 绑定到 ZY (uid:123, name:ZY, role:manager)
+    'FD': { uid: '123', name: 'ZY', role: 'manager' },
     // 如果后续拿到 FD 的 open_id 或 user_id，可以再加：
-    // 'ou_xxxxxxxxx': { uid: '123', name: 'ZY' },
-    // 'fd_numeric_user_id': { uid: '123', name: 'ZY' },
+    // 'ou_xxxxxxxxx': { uid: '123', name: 'ZY', role: 'manager' },
+    // 'fd_numeric_user_id': { uid: '123', name: 'ZY', role: 'manager' },
   };
 
   window._syncFeishuUserToMembers = function(fu){
