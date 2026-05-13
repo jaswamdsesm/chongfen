@@ -198,6 +198,19 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
             // 尝试从多个字段提取名字（飞书返回字段不固定）
             var _fuName = fu.name || fu.en_name || fu.username || '';
             if(!_fuName && fu.email) _fuName = String(fu.email).split('@')[0];
+
+            // ★ 同步阶段预绑定：在设置 currentUser 之前就查映射表
+            var _preBind = window._FEISHU_BIND_MAP && (
+              window._FEISHU_BIND_MAP[_fuUid]
+              || window._FEISHU_BIND_MAP[_fuNumericId]
+              || (_fuName ? window._FEISHU_BIND_MAP[_fuName] : null)
+            ) || null;
+            if(_preBind){
+              console.log('[免登] 🔗 预绑定命中:', _fuName, '→', _preBind.name, '('+_preBind.uid+')');
+              _fuName = _preBind.name || _fuName;  // 显示名直接用目标名
+              // 注意：uid 先保持原始 open_id（用于后续异步同步），显示名已替换
+            }
+
             // 超管识别：优先用 Edge Function 返回的 is_admin，fallback 多种方式
             console.log('[免登] ⑦用户字段:', JSON.stringify(fu));
             var _isAdminUser = fu.is_admin === true || fu.is_admin === 'true' || (
@@ -210,9 +223,11 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
             // 恢复用户之前保存的显示名称（多key fallback）
             var _savedDN = localStorage.getItem('crm_display_name_' + _fuUid)
               || localStorage.getItem('crm_display_name_' + _fuName)
+              || localStorage.getItem('crm_display_name_' + _fuNumericId)
+              || localStorage.getItem('crm_display_name_' + (_preBind ? _preBind.uid : ''))
               || localStorage.getItem('crm_display_name_592631')
               || localStorage.getItem('crm_display_name_ALI');
-            window.currentUser = { name: _fuName || _fuUid, uid: _fuUid, role: _fuRole, displayName: _savedDN || undefined };
+            window.currentUser = { name: _fuName || _fuUid, uid: _preBind ? (_preBind.uid || _fuUid) : _fuUid, role: _fuRole, displayName: _savedDN || undefined, _boundTo: _preBind ? _preBind.name : null };
             localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
             // 异步同步 members 表（不阻塞进入系统）
             _syncFeishuUserToMembers(fu);
