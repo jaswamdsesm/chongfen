@@ -212,19 +212,6 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
             // 异步同步 members 表（不阻塞进入系统）
             _syncFeishuUserToMembers(fu);
             log('⑦免登成功:' + _fuName + ' (uid=' + _fuUid + ' user_id=' + _fuNumericId + ' role=' + _fuRole + ')');
-            // 在页面顶部显示醒目身份横幅（飞书无F12，必须可见）
-            (function(){
-              var existing = document.getElementById('__identityBanner');
-              if(existing) existing.remove();
-              var banner = document.createElement('div');
-              banner.id = '__identityBanner';
-              banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;padding:10px 18px;font-size:13px;font-weight:600;box-shadow:0 2px 12px rgba(0,0,0,.4);line-height:1.6;';
-              var info = 'ID: <b>' + (_fuName||'EMPTY') + '</b> | UID: ' + _fuUid + ' | user_id: ' + _fuNumericId + ' | Role: <b>' + _fuRole + '</b> | is_admin: ' + String(fu.is_admin);
-              info += '<br><span style="font-size:11px;opacity:.85">Raw: name=' + String(fu.name||'EMPTY') + ' en_name=' + String(fu.en_name||'EMPTY') + ' email=' + String(fu.email||'EMPTY') + '</span>';
-              banner.innerHTML = info;
-              document.body.prepend(banner);
-              setTimeout(function(){ banner.style.transition='opacity .6s'; banner.style.opacity='0'; setTimeout(function(){banner.remove();},700); }, 12000);
-            })();
             return window.currentUser;
           } else {
             var errMsg = (data && data.error) ? data.error : '未知错误';
