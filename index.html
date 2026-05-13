@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051325'):('?_v=2026051325');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051326'):('?_v=2026051326');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -176,7 +176,7 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
       // 非飞书环境 → 跳过
       // 已手动退出，不再自动免登
       if(localStorage.getItem('manual_logout') === '1'){
-        document.getElementById('appPage').innerHTML = '<div style="padding:60px;text-align:center;color:#94a3b8;font-size:15px;">🙋 您已退出登录<br><button onclick="location.reload()" style="margin-top:18px;padding:8px 28px;border-radius:8px;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;border:none;font-size:14px;cursor:pointer;">重新登录</button></div>';
+        document.getElementById('appPage').innerHTML = '<div style="padding:60px;text-align:center;color:#94a3b8;font-size:15px;"><svg class="icon"><use href="#icon-user"/></svg> 您已退出登录<br><button onclick="location.reload()" style="margin-top:18px;padding:8px 28px;border-radius:8px;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;border:none;font-size:14px;cursor:pointer;">重新登录</button></div>';
         return;
       }
       if(!isFeishuEnv()){ log('③非飞书环境,跳过'); return Promise.resolve(null); }
@@ -805,6 +805,40 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
   .page-header h2{font-size:16px;}
 }
 </style>
+
+<!-- SVG Icon Sprites (replacing emoji icons) -->
+<style>
+.icon{display:inline-block;vertical-align:middle;width:1em;height:1em;fill:currentColor;stroke:none}
+.nav-icon .icon{width:18px;height:18px}
+.theme-icon .icon{width:16px;height:16px}
+.sidebar-logo .icon{width:20px;height:20px;vertical-align:text-bottom;margin-right:2px}
+.card-title>.icon,.card-title+*>.icon{width:16px;height:16px;vertical-align:text-bottom;margin-right:2px}
+.btn .icon{width:15px;height:15px;vertical-align:text-bottom;margin-right:4px}
+.login-page h1 .icon{width:24px;height:24px;vertical-align:text-bottom;margin-right:6px}
+.phone-hint .icon,.batch-detected-icon .icon{width:14px;height:14px;vertical-align:text-bottom;margin-right:2px}
+.modal-box h3 .icon{width:18px;height:18px;vertical-align:text-bottom;margin-right:4px}
+.batch-stat-icon .icon{width:16px;height:16px;vertical-align:middle;margin-right:2px}
+.mobile-tab .icon{width:20px;height:20px}
+</style>
+<svg style="display:none">
+<symbol id="icon-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill-opacity=".12"/><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 2a8 8 0 110 16 8 8 0 010-16zm-1 4l-5 9 9-5-4-4z"/></symbol>
+<symbol id="icon-chart-bar" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></symbol>
+<symbol id="icon-plus-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill-opacity=".12"/><path d="M12 5v14M5 12h14" stroke-width="2" stroke="currentColor" stroke-linecap="round"/></symbol>
+<symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v13m0 0l-5-5m5 5l5-5M4 17v3a2 2 0 002 2h12a2 2 0 002-2v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="icon-users" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 21v-2a5 5 0 015-5h2a5 5 0 015 5v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="17" cy="9" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M21 21v-2a4 4 0 00-3-3.87" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="icon-clipboard-list" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><rect x="4" y="4" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11h8M8 15h8M8 19h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21v-2a8 8 0 0116 0v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" fill="currentColor"/></symbol>
+<symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="currentColor"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="icon-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 118 0v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="icon-warning" viewBox="0 0 24 24"><path d="M12 2L2 20h20L12 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="icon-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="icon-x-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+</svg>
 </head>
 <body>
 <!-- 全屏 Loading（初始化/免登期间显示） -->
@@ -818,15 +852,15 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 </style>
 
 <!-- JS 存活检测：脚本正常执行时会移除此元素 -->
-<div id="jsAliveCheck" style="position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;text-align:center;padding:8px;font-size:13px;z-index:99999;">⚠️ JavaScript 未执行 — 请按 F12 打开控制台查看报错</div>
+<div id="jsAliveCheck" style="position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;text-align:center;padding:8px;font-size:13px;z-index:99999;"><svg class="icon"><use href="#icon-warning"/></svg> JavaScript 未执行 — 请按 F12 打开控制台查看报错</div>
 <script>try{document.getElementById('jsAliveCheck').remove();console.log('[OK] JS is alive');}catch(e){console.error('JS dead:',e);}</script>
 
 <!-- 登录 -->
 <div class="login-page" id="loginPage">
   <div class="login-card" style="position:relative;">
-    <h1>🧭 客户管理系统</h1>
+    <h1><svg class="icon"><use href="#icon-compass"/></svg> 客户管理系统</h1>
     <p class="subtitle">销售团队客户管理 · 防重复跟进 · 支持全球手机号</p>
-    <button id="loginThemeToggle" onclick="toggleTheme()" style="position:absolute;top:14px;right:18px;padding:6px 12px;border-radius:20px;border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.3);color:#94a3b8;font-size:11px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:4px;white-space:nowrap;"><span class="theme-icon" id="loginThemeIcon">🌙</span><span class="theme-text" id="loginThemeText">夜间</span></button>
+    <button id="loginThemeToggle" onclick="toggleTheme()" style="position:absolute;top:14px;right:18px;padding:6px 12px;border-radius:20px;border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.3);color:#94a3b8;font-size:11px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:4px;white-space:nowrap;"><span class="theme-icon" id="loginThemeIcon"><svg class="icon"><use href="#icon-moon"/></svg></span><span class="theme-text" id="loginThemeText">夜间</span></button>
 
     <div class="config-area" id="configArea" style="display:none;">
       <label>Supabase URL</label>
@@ -834,12 +868,12 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
       <label>Supabase Anon Key</label>
       <input type="password" id="cfgKey" placeholder="eyJ..." style="margin-bottom:12px;">
       <button class="btn btn-primary" onclick="saveConfig()" style="width:100%;">保存配置</button>
-      <p class="config-note" style="margin-top:14px;">⚠️ 首次使用需配置 Supabase 数据库连接。按说明文档创建项目和表后填入。</p>
+      <p class="config-note" style="margin-top:14px;"><svg class="icon"><use href="#icon-warning"/></svg> 首次使用需配置 Supabase 数据库连接。按说明文档创建项目和表后填入。</p>
     </div>
 
     <div id="configSaved">
       <div style="text-align:center;padding:32px 0;">
-        <div style="font-size:28px;margin-bottom:12px;">🔐</div>
+        <div style="font-size:28px;margin-bottom:12px;"><svg class="icon"><use href="#icon-lock"/></svg></div>
         <p style="font-size:15px;color:#c7d2fe;font-weight:600;margin-bottom:8px;">正在通过飞书验证身份...</p>
         <p style="font-size:12px;color:#64748b;">请稍候，系统将自动完成登录</p>
         <div style="margin-top:20px;display:flex;justify-content:center;gap:8px;"><div class="spinner" style="display:inline-block;"></div></div>
@@ -860,37 +894,37 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
   <aside class="sidebar" id="mainSidebar">
     <!-- 桌面端：正常侧边栏导航 -->
     <div class="sidebar-desktop">
-      <div class="sidebar-logo">🧭 客户管理系统</div>
+      <div class="sidebar-logo"><svg class="icon"><use href="#icon-compass"/></svg> 客户管理系统</div>
       <div class="sidebar-desc">防重复 · 全球号码 · 自动识别</div>
-      <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard',this)"><span class="nav-icon">📊</span>工作台</button>
-      <button class="nav-item" data-page="addCustomer" onclick="switchPage('addCustomer',this)"><span class="nav-icon">➕</span>添加客户</button>
-      <button class="nav-item" data-page="batchImport" onclick="switchPage('batchImport',this)"><span class="nav-icon">📥</span>批量导入</button>
-      <button class="nav-item" data-page="searchCustomer" onclick="switchPage('searchCustomer',this)"><span class="nav-icon">🔍</span>查询</button>
-      <button class="nav-item" data-page="myCustomers" onclick="switchPage('myCustomers',this)"><span class="nav-icon">👥</span>我的客户</button>
-      <button class="nav-item" data-page="allCustomers" onclick="switchPage('allCustomers',this)"><span class="nav-icon">📋</span>全部客户</button>
-      <button class="nav-item" data-page="profile" onclick="switchPage('profile',this)"><span class="nav-icon">👤</span>个人设置</button>
-      <button class="nav-item" id="navMemberMgr" data-page="memberManage" onclick="switchPage('memberManage',this)" style="display:none;"><span class="nav-icon">👥</span>成员管理</button>
+      <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard',this)"><span class="nav-icon"><svg class="icon"><use href="#icon-chart-bar"/></svg></span>工作台</button>
+      <button class="nav-item" data-page="addCustomer" onclick="switchPage('addCustomer',this)"><span class="nav-icon"><svg class="icon"><use href="#icon-plus-circle"/></svg></span>添加客户</button>
+      <button class="nav-item" data-page="batchImport" onclick="switchPage('batchImport',this)"><span class="nav-icon"><svg class="icon"><use href="#icon-download"/></svg></span>批量导入</button>
+      <button class="nav-item" data-page="searchCustomer" onclick="switchPage('searchCustomer',this)"><span class="nav-icon"><svg class="icon"><use href="#icon-search"/></svg></span>查询</button>
+      <button class="nav-item" data-page="myCustomers" onclick="switchPage('myCustomers',this)"><span class="nav-icon"><svg class="icon"><use href="#icon-users"/></svg></span>我的客户</button>
+      <button class="nav-item" data-page="allCustomers" onclick="switchPage('allCustomers',this)"><span class="nav-icon"><svg class="icon"><use href="#icon-clipboard-list"/></svg></span>全部客户</button>
+      <button class="nav-item" data-page="profile" onclick="switchPage('profile',this)"><span class="nav-icon"><svg class="icon"><use href="#icon-user"/></svg></span>个人设置</button>
+      <button class="nav-item" id="navMemberMgr" data-page="memberManage" onclick="switchPage('memberManage',this)" style="display:none;"><span class="nav-icon"><svg class="icon"><use href="#icon-users"/></svg></span>成员管理</button>
       <!-- 主题切换 -->
-      <button class="nav-item nav-theme-btn" onclick="toggleTheme()" title="切换日间/夜间模式"><span class="theme-icon">🌙</span><span class="theme-text">夜间模式</span></button>
+      <button class="nav-item nav-theme-btn" onclick="toggleTheme()" title="切换日间/夜间模式"><span class="theme-icon"><svg class="icon"><use href="#icon-moon"/></svg></span><span class="theme-text">夜间模式</span></button>
       <div class="sidebar-user">
         <div class="user-name" id="sidebarUserName">当前用户：-</div>
       </div>
     </div>
     <!-- 移动端：底部 Tab 栏 -->
     <div class="mobile-tab-bar" id="mobileNavBar" style="display:none;">
-      <button class="mobile-tab active" data-page="dashboard" onclick="switchMobileTab('dashboard',this)">📊</button>
-      <button class="mobile-tab" data-page="addCustomer" onclick="switchMobileTab('addCustomer',this)">➕</button>
-      <button class="mobile-tab" data-page="searchCustomer" onclick="switchMobileTab('searchCustomer',this)">🔍</button>
-      <button class="mobile-tab" data-page="myCustomers" onclick="switchMobileTab('myCustomers',this)">👤</button>
-      <button class="mobile-tab" data-page="allCustomers" onclick="switchMobileTab('allCustomers',this)">📋</button>
-      <button class="mobile-tab mobile-tab-theme" onclick="toggleTheme()" title="切换主题"><span class="theme-icon" id="mobileThemeIcon">🌙</span></button>
+      <button class="mobile-tab active" data-page="dashboard" onclick="switchMobileTab('dashboard',this)"><svg class="icon"><use href="#icon-chart-bar"/></svg></button>
+      <button class="mobile-tab" data-page="addCustomer" onclick="switchMobileTab('addCustomer',this)"><svg class="icon"><use href="#icon-plus-circle"/></svg></button>
+      <button class="mobile-tab" data-page="searchCustomer" onclick="switchMobileTab('searchCustomer',this)"><svg class="icon"><use href="#icon-search"/></svg></button>
+      <button class="mobile-tab" data-page="myCustomers" onclick="switchMobileTab('myCustomers',this)"><svg class="icon"><use href="#icon-user"/></svg></button>
+      <button class="mobile-tab" data-page="allCustomers" onclick="switchMobileTab('allCustomers',this)"><svg class="icon"><use href="#icon-clipboard-list"/></svg></button>
+      <button class="mobile-tab mobile-tab-theme" onclick="toggleTheme()" title="切换主题"><span class="theme-icon" id="mobileThemeIcon"><svg class="icon"><use href="#icon-moon"/></svg></span></button>
       <button class="mobile-tab mobile-tab-more" onclick="toggleMobileMore()">⋯</button>
       <!-- 更多菜单（展开） -->
       <div class="mobile-more-menu" id="mobileMoreMenu">
-        <button class="mobile-more-item" onclick="switchMobileTab('batchImport',this); toggleMobileMore();">📥 批量导入</button>
+        <button class="mobile-more-item" onclick="switchMobileTab('batchImport',this); toggleMobileMore();"><svg class="icon"><use href="#icon-download"/></svg> 批量导入</button>
         <button class="more-divider"></button>
-        <button class="mobile-more-item" onclick="switchMobileTab('profile',this); toggleMobileMore();">⚙️ 个人设置</button>
-        <button class="mobile-more-item" id="mobileMemberBtn" style="display:none;" onclick="switchMobileTab('memberManage',this); toggleMobileMore();">👥 成员管理</button>
+        <button class="mobile-more-item" onclick="switchMobileTab('profile',this); toggleMobileMore();"><svg class="icon"><use href="#icon-settings"/></svg> 个人设置</button>
+        <button class="mobile-more-item" id="mobileMemberBtn" style="display:none;" onclick="switchMobileTab('memberManage',this); toggleMobileMore();"><svg class="icon"><use href="#icon-users"/></svg> 成员管理</button>
       </div>
     </div>
   </aside>
@@ -910,7 +944,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 
       <!-- 客户来源国家分布（所有用户可见） -->
       <div id="countryChartCard" class="card">
-        <div class="card-title">🌍 客户来源国家分布</div>
+        <div class="card-title"><svg class="icon"><use href="#icon-globe"/></svg> 客户来源国家分布</div>
         <div style="display:flex;align-items:center;gap:28px;flex-wrap:wrap;">
           <canvas id="countryPieCanvas" width="220" height="220" style="max-width:220px;max-height:220px;"></canvas>
           <div id="countryLegend" style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:6px;"></div>
@@ -920,7 +954,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
       <!-- 管理员：销售汇总（仅ADMIN可见） -->
       <div id="adminSummaryCard" style="display:none;" class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
-          <div class="card-title" style="margin-bottom:0;">📊 进粉数</div>
+          <div class="card-title" style="margin-bottom:0;"><svg class="icon"><use href="#icon-chart-bar"/></svg> 进粉数</div>
           <select id="adminSumMonthSelect" onchange="loadAdminSummary()" style="padding:7px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.55);color:#e2e8f0;font-size:13px;outline:none;cursor:pointer;">
             <option value="">选择月份</option>
           </select>
@@ -975,15 +1009,15 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:12px;text-align:center;">
           <div style="background:rgba(34,197,94,.08);border-radius:8px;padding:10px;">
             <div style="font-size:20px;font-weight:800;color:#4ade80;" id="batchSuccessCount">0</div>
-            <div style="color:#64748b;">✅ 成功</div>
+            <div style="color:#64748b;"><svg class="icon"><use href="#icon-check-circle"/></svg> 成功</div>
           </div>
           <div style="background:rgba(245,158,11,.08);border-radius:8px;padding:10px;">
             <div style="font-size:20px;font-weight:800;color:#fbbf24;" id="batchDupCount">0</div>
-            <div style="color:#64748b;">⚠️ 重复(跳过)</div>
+            <div style="color:#64748b;"><svg class="icon"><use href="#icon-warning"/></svg> 重复(跳过)</div>
           </div>
           <div style="background:rgba(239,68,68,.08);border-radius:8px;padding:10px;">
             <div style="font-size:20px;font-weight:800;color:#ef4444;" id="batchFailCount">0</div>
-            <div style="color:#64748b;">❌ 失败</div>
+            <div style="color:#64748b;"><svg class="icon"><use href="#icon-x-circle"/></svg> 失败</div>
           </div>
         </div>
         <div id="batchLogArea" style="max-height:200px;overflow-y:auto;margin-top:14px;font-size:11px;line-height:1.8;color:#94a3b8;"></div>
@@ -1000,7 +1034,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
           <label>支持以下任意格式（可混合使用）</label>
           <textarea id="batchInput" rows="10" placeholder="示例 — 每行一个：&#10;+44 7700 900123&#10;0033 612 345 678&#10;+39 345 1234567&#10;&#10;或用逗号/分号分隔：&#10;+44 7700 900123, +33 612 345 678&#10;&#10;或从 Excel 复制一列直接粘贴" style="padding:14px 16px;border-radius:10px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.55);color:#e2e8f0;font-size:14px;outline:none;resize:vertical;width:100%;font-family:inherit;line-height:1.6;" oninput="onBatchInputChange()"></textarea>
           <div style="display:flex;gap:16px;margin-top:8px;font-size:12px;color:#64748b;">
-            <span>📊 检测到 <strong id="batchDetectedCount" style="color:#818cf8;">0</strong> 个号码</span>
+            <span><span class="batch-detected-icon"><svg class="icon"><use href="#icon-chart-bar"/></svg></span> 检测到 <strong id="batchDetectedCount" style="color:#818cf8;">0</strong> 个号码</span>
             <span id="batchPreviewHint"></span>
           </div>
         </div>
@@ -1033,7 +1067,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
           <input type="text" id="mySearchInput" placeholder="搜索手机号或国家..." onkeyup="if(event.key==='Enter')loadMyCustomers()" style="flex:1;min-width:160px;padding:9px 14px;border-radius:9px;border:1px solid rgba(148,163,184,.18);background:var(--input-bg, rgba(15,23,42,.55));color:var(--input-color, #e2e8f0);font-size:13px;outline:none;">
           <button class="btn btn-primary btn-sm" onclick="loadMyCustomers()">筛选</button>
           <span style="width:1px;height:22px;background:rgba(148,163,184,.15);display:inline-block;"></span>
-          <button id="myDateBtn" onclick="toggleMyDatePicker()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(99,102,241,.6);background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.18));color:#818cf8;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all .2s;">📅 <span id="myDateBtnText">选择日期</span> ▾</button>
+          <button id="myDateBtn" onclick="toggleMyDatePicker()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(99,102,241,.6);background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.18));color:#818cf8;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all .2s;"><svg class="icon"><use href="#icon-calendar"/></svg> <span id="myDateBtnText">选择日期</span> ▾</button>
           <button onclick="clearMyDateFilter()" id="myClearDateBtn" style="padding:5px 14px;display:none;background:transparent;border:1px solid rgba(148,163,184,.2);border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer;">清除</button>
           <button class="btn btn-sm" onclick="loadMyCustomers()" title="刷新数据" style="padding:7px 12px;border:1px solid rgba(148,163,184,.25);background:transparent;color:#94a3b8;font-size:15px;cursor:pointer;transition:all .15s;border-radius:9px;" onmouseover="this.style.borderColor='#818cf8';this.style.color='#818cf8'" onmouseout="this.style.borderColor='rgba(148,163,184,.25)';this.style.color='#94a3b8'">⟳</button>
           <span style="width:1px;height:22px;background:rgba(148,163,184,.15);display:inline-block;"></span>
@@ -1065,7 +1099,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
           <input type="text" id="allSearchInput" placeholder="搜索手机号、国家或销售姓名..." onkeyup="if(event.key==='Enter')loadAllCustomers()">
           <button class="btn btn-primary btn-sm" onclick="loadAllCustomers()">筛选</button>
           <span style="width:1px;height:22px;background:rgba(148,163,184,.15);display:inline-block;"></span>
-          <button id="allDateBtn" onclick="toggleAllDatePicker()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(99,102,241,.6);background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.18));color:#818cf8;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all .2s;">📅 <span id="allDateBtnText">选择日期</span> ▾</button>
+          <button id="allDateBtn" onclick="toggleAllDatePicker()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(99,102,241,.6);background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.18));color:#818cf8;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all .2s;"><svg class="icon"><use href="#icon-calendar"/></svg> <span id="allDateBtnText">选择日期</span> ▾</button>
           <button onclick="clearAllDateFilter()" id="allClearDateBtn" style="padding:5px 14px;display:none;background:transparent;border:1px solid rgba(148,163,184,.2);border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer;">清除</button>
           <button class="btn btn-sm" onclick="loadAllCustomers()" title="刷新数据" style="padding:7px 12px;border:1px solid rgba(148,163,184,.25);background:transparent;color:#94a3b8;font-size:15px;cursor:pointer;transition:all .15s;border-radius:9px;" onmouseover="this.style.borderColor='#818cf8';this.style.color='#818cf8'" onmouseout="this.style.borderColor='rgba(148,163,184,.25)';this.style.color='#94a3b8'">⟳</button>
           <span style="width:1px;height:22px;background:rgba(148,163,184,.15);display:inline-block;"></span>
@@ -1147,7 +1181,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 <!-- 查重弹窗 -->
 <div class="modal-overlay" id="dupModal">
   <div class="modal-box">
-    <h3>⚠️ 该号码已被录入！</h3>
+    <h3><svg class="icon"><use href="#icon-warning"/></svg> 该号码已被录入！</h3>
     <div id="dupList"></div>
     <p style="font-size:12px;color:#94a3b8;" id="dupHint"></p>
     <div class="modal-actions">
@@ -1403,9 +1437,9 @@ function showPhoneHint(inputIdOrValue, hintElId) {
   const country = detectCountry(cleaned);
 
   if (country) {
-    el.innerHTML = `🌍 识别：<span class="country-preview">${escHtml(country.country)}</span> &nbsp;|&nbsp; 存储为：<span class="clean-preview">${cleaned}</span>`;
+    el.innerHTML = `<svg class="icon"><use href="#icon-globe"/></svg> 识别：<span class="country-preview">${escHtml(country.country)}</span> &nbsp;|&nbsp; 存储为：<span class="clean-preview">${cleaned}</span>`;
   } else if (cleaned && cleaned.length >= 3) {
-    el.innerHTML = `⚠️ 未识别到国家 &nbsp;|&nbsp; 存储为：<span class="clean-preview">${cleaned}</span>`;
+    el.innerHTML = `<svg class="icon"><use href="#icon-warning"/></svg> 未识别到国家 &nbsp;|&nbsp; 存储为：<span class="clean-preview">${cleaned}</span>`;
   } else {
     el.innerHTML = '';
   }
@@ -1459,18 +1493,18 @@ function toggleTheme(){
   if(isLight){
     body.classList.remove('light-mode');
     allToggles.forEach(el => {
-      if(el.id === 'mobileThemeIcon'){ el.textContent='🌙'; return; }
+      if(el.id === 'mobileThemeIcon'){ el.innerHTML='<svg class=\'icon\'><use href=\'#icon-moon\'/></svg>'; return; }
       const icon=el.querySelector('.theme-icon'), txt=el.querySelector('.theme-text');
-      if(icon) icon.textContent='🌙';
+      if(icon) icon.innerHTML='<svg class=\'icon\'><use href=\'#icon-moon\'/></svg>';
       if(txt) txt.textContent = el.classList.contains('nav-theme-btn') ? '夜间模式' : '夜间';
     });
     localStorage.setItem(THEME_KEY, 'dark');
   } else {
     body.classList.add('light-mode');
     allToggles.forEach(el => {
-      if(el.id === 'mobileThemeIcon'){ el.textContent='☀️'; return; }
+      if(el.id === 'mobileThemeIcon'){ el.innerHTML='<svg class=\'icon\'><use href=\'#icon-sun\'/></svg>'; return; }
       const icon=el.querySelector('.theme-icon'), txt=el.querySelector('.theme-text');
-      if(icon) icon.textContent='☀️';
+      if(icon) icon.innerHTML='<svg class=\'icon\'><use href=\'#icon-sun\'/></svg>';
       if(txt) txt.textContent = el.classList.contains('nav-theme-btn') ? '日间模式' : '日间';
     });
     localStorage.setItem(THEME_KEY, 'light');
@@ -1496,17 +1530,17 @@ function initTheme(){
   
   // Update ALL theme buttons (login + sidebar nav + mobile tab)
   document.querySelectorAll('#loginThemeToggle, .nav-theme-btn, .theme-toggle:not(.nav-theme-btn), #mobileThemeIcon').forEach(el => {
-    if(el.id === 'mobileThemeIcon'){ el.textContent = isLight?'☀️':'🌙'; return; }
+    if(el.id === 'mobileThemeIcon'){ el.innerHTML = isLight?'<svg class=\'icon\'><use href=\'#icon-sun\'/></svg>':'<svg class=\'icon\'><use href=\'#icon-moon\'/></svg>'; return; }
     const icon=el.querySelector('.theme-icon'), txt=el.querySelector('.theme-text');
     if(icon && txt){
-      icon.textContent=isLight?'☀️':'🌙';
+      icon.innerHTML=isLight?'<svg class=\'icon\'><use href=\'#icon-sun\'/></svg>':'<svg class=\'icon\'><use href=\'#icon-moon\'/></svg>';
       txt.textContent = isLight 
         ? (el.classList.contains('nav-theme-btn') ? '日间模式' : '日间')
         : (el.classList.contains('nav-theme-btn') ? '夜间模式' : '夜间');
     }
   });
   var mti = document.getElementById('mobileThemeIcon');
-  if(mti) mti.textContent = isLight?'☀️':'🌙';
+  if(mti) mti.innerHTML = isLight?'<svg class=\'icon\'><use href=\'#icon-sun\'/></svg>':'<svg class=\'icon\'><use href=\'#icon-moon\'/></svg>';
 }
 
 // ========== Supabase 配置（已预填） ==========
@@ -1719,7 +1753,7 @@ function showSupabaseDeadWarning(){
   var warn = document.createElement('div');
   warn.className = 'supabase-warn';
   warn.style.cssText = 'background:rgba(220,38,38,.12);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:12px 16px;color:#fca5a5;font-size:12.5px;margin-bottom:18px;line-height:1.6;';
-  warn.innerHTML = '<b>⚠️ 数据库连接异常</b><br>Supabase SDK 加载失败，可能原因：<br>1. 网络/防火墙屏蔽了 CDN（jsdelivr/unpkg）<br>2. 需要开启代理/VPN<br><br>建议：检查网络后刷新页面。如果持续无法使用，可下载 <code>@supabase/supabase-js</code> 到本地引用。';
+  warn.innerHTML = '<b><svg class="icon"><use href="#icon-warning"/></svg> 数据库连接异常</b><br>Supabase SDK 加载失败，可能原因：<br>1. 网络/防火墙屏蔽了 CDN（jsdelivr/unpkg）<br>2. 需要开启代理/VPN<br><br>建议：检查网络后刷新页面。如果持续无法使用，可下载 <code>@supabase/supabase-js</code> 到本地引用。';
   var configSaved = document.getElementById('configSaved');
   if(configSaved){ configSaved.parentNode.insertBefore(warn, configSaved); }
 }
@@ -2175,7 +2209,7 @@ function showDupModal(dups){
   const count = dups.length;
   const dup = dups[0];
   const attemptCnt = (dup && dup.attempt_count) || count;
-  document.getElementById('dupHint').textContent=`⚠️ 该号码已被尝试录入 ${attemptCnt} 次。如确认是新客户可强制录入。`;
+  document.getElementById('dupHint').textContent=`<svg class="icon"><use href="#icon-warning"/></svg> 该号码已被尝试录入 ${attemptCnt} 次。如确认是新客户可强制录入。`;
   const canSee = isManager();
   const html=dups.map((d,i)=>{
     const cnt = d.attempt_count || 1;
@@ -2183,8 +2217,8 @@ function showDupModal(dups){
     return `
     <div class="dup-item" style="${i===0?'border-left-color:#ef4444;':''}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <strong style="color:#f1f5f9;"${canSee?'':' title="'+escHtml(d.phone)+'"'}>📱 ${phoneText}</strong>${canSee?'':'<span style="color:#94a3b8;font-size:11px;margin-left:4px;">🔒</span>'}
-        <span style="font-size:11px;color:#f59e0b;font-weight:600;">🔄 尝试 ${cnt} 次</span>
+        <strong style="color:#f1f5f9;"${canSee?'':' title="'+escHtml(d.phone)+'"'}><svg class="icon"><use href="#icon-chart-bar"/></svg> ${phoneText}</strong>${canSee?'':'<span style="color:#94a3b8;font-size:11px;margin-left:4px;">🔒</span>'}
+        <span style="font-size:11px;color:#f59e0b;font-weight:600;"><svg class="icon"><use href="#icon-warning"/></svg> 尝试 ${cnt} 次</span>
       </div>
       归属：<span class="${d.owner_name===currentUser.name?'owner-me':'owner-badge'}">${escHtml(d.owner_name)}</span>
       | 录入时间：${formatTime(d.created_at)}
@@ -2214,7 +2248,7 @@ async function writePhone(cleanPhoneVal, rawInput){
 
     if(error){
       if(error.code==='23505'||(error.message&&error.message.includes('unique'))){
-        showToast('❌ 该号码已存在！','error');return;
+        showToast('<svg class="icon"><use href="#icon-x-circle"/></svg> 该号码已存在！','error');return;
       }
       throw error;
     }
@@ -2223,8 +2257,8 @@ async function writePhone(cleanPhoneVal, rawInput){
     const country = detectCountry(cleanPhoneVal);
     const displayNum = formatPhoneDisplay(cleanPhoneVal);
     const msg = country
-      ? `✅ ${displayNum} (${country.country}) 录入成功`
-      : `✅ ${displayNum} 录入成功`;
+      ? `<svg class="icon"><use href="#icon-check-circle"/></svg> ${displayNum (${country.country}) 录入成功`
+      : `<svg class="icon"><use href="#icon-check-circle"/></svg> ${displayNum 录入成功`;
     showToast(msg, 'success');
 
     loadDashboardStats();
@@ -2240,8 +2274,8 @@ async function writePhone(cleanPhoneVal, rawInput){
 async function searchCustomer(){
   const keyword=document.getElementById('searchInput').value.trim();
   const c=document.getElementById('searchResults');
-  if(!keyword){c.innerHTML='<div class="empty-state"><div class="icon">🔍</div>请输入搜索内容</div>';return;}
-  if(!supabaseClient){c.innerHTML='<div class="empty-state"><div class="icon">⚠️</div>未连接</div>';return;}
+  if(!keyword){c.innerHTML='<div class="empty-state"><div class="icon"><svg class="icon"><use href="#icon-search"/></svg></div>请输入搜索内容</div>';return;}
+  if(!supabaseClient){c.innerHTML='<div class="empty-state"><div class="icon"><svg class="icon"><use href="#icon-warning"/></svg></div>未连接</div>';return;}
   c.innerHTML='<div class="loading"><span class="spinner"></span>查询中...</div>';
 
   // 先清洗关键词
@@ -2270,7 +2304,7 @@ async function searchCustomer(){
     if(error)throw error;
     if(!data||!data.length){c.innerHTML='<div class="empty-state"><div class="icon">📭</div>未找到匹配</div>';return;}
     c.innerHTML=renderTable(data);
-  }catch(err){c.innerHTML=`<div class="empty-state"><div class="icon">❌</div>${escHtml(err.message||err)}</div>`;}
+  }catch(err){c.innerHTML=`<div class="empty-state"><div class="icon"><svg class="icon"><use href="#icon-x-circle"/></svg></div>${escHtml(err.message||err)}</div>`;}
 }
 
 // ============================================================
@@ -2284,7 +2318,7 @@ let allPage=1;
 let allTotalCount=0;
 async function loadMyCustomers(){
   const c=document.getElementById('myCustomersList');
-  if(!supabaseClient){c.innerHTML='<div class="empty-state"><div class="icon">⚠️</div>未连接</div>';return;}
+  if(!supabaseClient){c.innerHTML='<div class="empty-state"><div class="icon"><svg class="icon"><use href="#icon-warning"/></svg></div>未连接</div>';return;}
   // 重置到第1页（除非是翻页操作）
   const sortVal=document.getElementById('mySortVal')?document.getElementById('mySortVal').value:'desc';
   const ascending=sortVal==='asc';
@@ -2306,11 +2340,11 @@ async function loadMyCustomers(){
     if(error)throw error;
     if(!data||!data.length){
       if(myPage>1){myPage=1;loadMyCustomers();return;}
-      c.innerHTML='<div class="empty-state"><div class="icon">📋</div>暂无记录</div>';return;
+      c.innerHTML='<div class="empty-state"><div class="icon"><svg class="icon"><use href="#icon-clipboard-list"/></svg></div>暂无记录</div>';return;
     }
     c.innerHTML=renderTable(data,true)+buildPagination('my',myPage,Math.ceil(myTotalCount/PAGE_SIZE),myTotalCount);
   applyOwnerBadgeColors();
-  }catch(err){c.innerHTML=`<div class="empty-state"><div class="icon">❌</div>${escHtml(err.message||err)}</div>`;}
+  }catch(err){c.innerHTML=`<div class="empty-state"><div class="icon"><svg class="icon"><use href="#icon-x-circle"/></svg></div>${escHtml(err.message||err)}</div>`;}
 }
 function goMyPage(p){myPage=p;loadMyCustomers();}
 function goAllPage(p){allPage=p;loadAllCustomers();}
@@ -3368,7 +3402,7 @@ function renderTable(data,isMine=false){
     const cnt = c.attempt_count || 1;
     let attemptCell = '';
     if(cnt > 1){
-      attemptCell = `<td style="color:#fbbf24;font-weight:700;font-size:13px;">🔄 ${cnt} 次</td>`;
+      attemptCell = `<td style="color:#fbbf24;font-weight:700;font-size:13px;"><svg class="icon"><use href="#icon-warning"/></svg> ${cnt} 次</td>`;
     } else {
       attemptCell = `<td style="color:#64748b;">-</td>`;
     }
@@ -3376,7 +3410,7 @@ function renderTable(data,isMine=false){
     return `
     <tr>
       <td>${i+1}</td>
-      <td><strong style="font-size:14px;letter-spacing:.5px"${phoneAttr}>${phoneText}</strong>${countryTag}${canSeePhone?'':'<span style="color:#94a3b8;font-size:11px;margin-left:4px;" title="仅管理员可查看完整号码">🔒</span>'}</td>
+      <td><strong style="font-size:14px;letter-spacing:.5px"${phoneAttr}>${phoneText}</strong>${countryTag}${canSeePhone?'':'<span style="color:#94a3b8;font-size:11px;margin-left:4px;" title="仅管理员可查看完整号码"><svg class="icon"><use href="#icon-lock"/></svg></span>'}</td>
       <td><span class="${c.owner_name===currentUser.name?'owner-me':'owner-badge'}">${escHtml(c.owner_name)}</span></td>
       <td>${formatTime(c.created_at)}</td>
       ${attemptCell}
@@ -3571,7 +3605,7 @@ async function startBatchImport(){
           .update({ attempt_count: (dup[0].attempt_count || 0) + 1, updated_at: _cnISO() })
           .eq('id', dup[0].id);
         batchStats.dup++;
-        addBatchLog(`⚠️ [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 已存在（${dup[0].owner_name}），已计数并跳过`,'dup');
+        addBatchLog(`[<svg class="icon"><use href="#icon-warning"/></svg> [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 已存在（${dup[0].owner_name}），已计数并跳过`,'dup');
       } else {
         // 写入
         const{error}=await supabaseClient.from('customers').insert([{
@@ -3585,20 +3619,20 @@ async function startBatchImport(){
         if(error){
           if(error.code==='23505'||(error.message&&error.message.includes('unique'))){
             batchStats.dup++;
-            addBatchLog(`⚠️ [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 已存在（唯一约束），跳过`,'dup');
+            addBatchLog(`[<svg class="icon"><use href="#icon-warning"/></svg> [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 已存在（唯一约束），跳过`,'dup');
           } else {
             batchStats.fail++;
-            addBatchLog(`❌ [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 写入失败：${error.message||JSON.stringify(error)}`,'err');
+            addBatchLog(`[<svg class="icon"><use href="#icon-x-circle"/></svg> [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 写入失败：${error.message||JSON.stringify(error)}`,'err');
           }
         } else {
           batchStats.ok++;
           const country=detectCountry(phone);
-          addBatchLog(`✅ [${i+1}/${total}] ${formatPhoneDisplay(phone)}${country?' ('+country.country+')':''} 录入成功`,'ok');
+          addBatchLog(`[<svg class="icon"><use href="#icon-check-circle"/></svg> [${i+1}/${total}] ${formatPhoneDisplay(phone)}${country?' ('+country.country+')':''} 录入成功`,'ok');
         }
       }
     } catch(err){
       batchStats.fail++;
-      addBatchLog(`❌ [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 错误：${err.message||err}`,'err');
+      addBatchLog(`[<svg class="icon"><use href="#icon-x-circle"/></svg> [${i+1}/${total}] ${formatPhoneDisplay(phone)} — 错误：${err.message||err}`,'err');
     }
 
     // 更新进度
@@ -3626,9 +3660,9 @@ async function startBatchImport(){
   addBatchLog(`\n🏁 完成！成功 ${batchStats.ok} | 跳过重复 ${batchStats.dup} | 失败 ${batchStats.fail}`,batchStats.fail>0?'err':'ok');
 
   if(batchStats.fail===0){
-    showToast(`批量导入完成！✅${batchStats.ok} 条成功 · ⚠️${batchStats.dup} 条重复跳过`,'success');
+    showToast(`批量导入完成！<svg class="icon"><use href="#icon-check-circle"/></svg>${batchStats.ok} 条成功 · <svg class="icon"><use href="#icon-warning"/></svg>${batchStats.dup} 条重复跳过`,'success');
   } else {
-    showToast(`批量导入完成：✅${batchStats.ok} 成功 · ⚠️${batchStats.dup} 跳过 · ❌${batchStats.fail} 失败`,'error');
+    showToast(`批量导入完成：<svg class="icon"><use href="#icon-check-circle"/></svg>${batchStats.ok} 成功 · <svg class="icon"><use href="#icon-warning"/></svg>${batchStats.dup} 跳过 · <svg class="icon"><use href="#icon-x-circle"/></svg>${batchStats.fail} 失败`,'error');
   }
 }
 
@@ -3693,11 +3727,11 @@ async function saveProfileName(){
   // 检查是否已经改过名字（name_renamed 标记）
   var userKey = currentUser.uid || currentUser.name;
   if(localStorage.getItem('crm_name_renamed_' + userKey)){
-    showToast('⚠️ 名称只能修改一次，如需修改请联系超管在成员管理中重置','warning');
+    showToast('<svg class="icon"><use href="#icon-warning"/></svg> 名称只能修改一次，如需修改请联系超管在成员管理中重置','warning');
     return;
   }
 
-  if(!confirm(`确定将「${currentUser.name}」改为「${newName}」？\n\n⚠️ 改名机会只有一次，请确认无误。`)){
+  if(!confirm(`确定将「${currentUser.name}」改为「${newName}」？\n\n<svg class="icon"><use href="#icon-warning"/></svg> 改名机会只有一次，请确认无误。`)){
     return;
   }
 
@@ -3737,7 +3771,7 @@ async function saveProfileName(){
     document.getElementById('profileNewName').value = '';
 
     const count = updated ? updated.length : 0;
-    showToast(`✅ 名称已更新为「${newName}」，同步了 ${count} 条客户记录`, 'success');
+    showToast(`<svg class="icon"><use href="#icon-check-circle"/></svg> 名称已更新为「${newName}」，同步了 ${count} 条客户记录`, 'success');
   } catch(err){
     console.error('改名失败:', err);
     showToast('改名失败：'+(err.message||JSON.stringify(err)), 'error');
@@ -3915,7 +3949,7 @@ async function loadOrders(ordSearch){
       h+='<tr style="border-bottom:1px solid rgba(148,163,184,.08);">'
       +'<td class="ord-td" style="padding:10px 8px;font-size:13px;color:#e2e8f0;">'+escHtml(o.date)+'</td>'
       +'<td class="ord-td" style="padding:10px 8px;font-size:13px;color:#e2e8f0;">'+escHtml(o.customer_name)+'</td>'
-      +'<td class="ord-td" style="padding:10px 8px;font-size:13px;color:#e2e8f0;" title="'+escHtml(phoneTitle)+'">'+escHtml(phoneDisplay)+(admin?'':'<span style="color:#94a3b8;font-size:11px;margin-left:4px;" title="仅管理员可查看完整号码">🔒</span>')+'</td>'
+      +'<td class="ord-td" style="padding:10px 8px;font-size:13px;color:#e2e8f0;" title="'+escHtml(phoneTitle)+'">'+escHtml(phoneDisplay)+(admin?'':'<span style="color:#94a3b8;font-size:11px;margin-left:4px;" title="仅管理员可查看完整号码"><svg class="icon"><use href="#icon-lock"/></svg></span>')+'</td>'
       +'<td class="ord-td" style="padding:10px 8px;font-size:13px;color:#e2e8f0;max-width:200px;word-wrap:break-word;">'+escHtml(o.address||'-')+'</td>'
       +'<td class="ord-td" style="padding:10px 8px;font-size:13px;color:#e2e8f0;max-width:200px;word-wrap:break-word;">'+escHtml(o.product)+'</td>'
       +'<td class="ord-amount" style="padding:10px 8px;font-size:13px;color:#34d399;text-align:right;font-weight:600;">¥'+(o.amount||0).toLocaleString()+'</td>'
@@ -4083,11 +4117,11 @@ function _refreshAuthUI(){
 async function loadMemberList(){
   const c = document.getElementById('memberList');
   if(!supabaseClient){
-    c.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>未连接</div>'; return;
+    c.innerHTML = '<div class="empty-state"><div class="icon"><svg class="icon"><use href="#icon-warning"/></svg></div>未连接</div>'; return;
   }
 
   if(!isManager()){
-    c.innerHTML = '<div class="empty-state"><div class="icon">🔒</div>无权限访问（仅管理员可查看）</div>'; return;
+    c.innerHTML = '<div class="empty-state"><div class="icon"><svg class="icon"><use href="#icon-lock"/></svg></div>无权限访问（仅管理员可查看）</div>'; return;
   }
 
   c.innerHTML = '<div class="loading"><span class="spinner"></span>加载中...</div>';
@@ -4100,7 +4134,7 @@ async function loadMemberList(){
     if(error) throw error;
 
     if(!members || members.length === 0){
-      c.innerHTML = '<div class="empty-state"><div class="icon">👥</div>暂无成员，点击上方「添加成员」按钮创建</div>'; return;
+      c.innerHTML = '<div class="empty-state"><div class="icon"><svg class="icon"><use href="#icon-users"/></svg></div>暂无成员，点击上方「添加成员」按钮创建</div>'; return;
     }
 
     // 查询每个成员的客户数（按 owner_name 匹配，兼容旧数据 uid 不一致的情况）
@@ -4176,7 +4210,7 @@ async function loadMemberList(){
     applyOwnerBadgeColors();  // 成员列表归属销售颜色
   } catch(err){
     console.error('成员列表加载失败:', err);
-    c.innerHTML = `<div class="empty-state"><div class="icon">❌</div>${escHtml(err.message||err)}</div>`;
+    c.innerHTML = `<div class="empty-state"><div class="icon"><svg class="icon"><use href="#icon-x-circle"/></svg></div>${escHtml(err.message||err)}</div>`;
   }
 }
 
@@ -4230,7 +4264,7 @@ async function doAddMember(){
     });
     if(error) throw error;
 
-    showToast(`✅ 成员「${name}」添加成功，初始密码：${pwd}`,'success');
+    showToast(`<svg class="icon"><use href="#icon-check-circle"/></svg> 成员「${name}」添加成功，初始密码：${pwd}`,'success');
     hideAddMemberForm();
     loadMemberList();
   } catch(err){
@@ -4267,7 +4301,7 @@ async function resetMemberName(memberUid, memberName){
       document.getElementById('profileCurrentName').value = newName;
     }
 
-    showToast('✅「'+memberName+'」已重置为「'+newName+'」，该用户可重新修改一次','success');
+    showToast('<svg class="icon"><use href="#icon-check-circle"/></svg>「'+memberName+'」已重置为「'+newName+'」，该用户可重新修改一次','success');
     loadMemberList();
   } catch(err){
     showToast('重置失败：'+(err.message||JSON.stringify(err)),'error');
@@ -4276,12 +4310,12 @@ async function resetMemberName(memberUid, memberName){
 
 /** 管理员删除成员 */
 async function deleteMember(memberUid, memberName){
-  if(!confirm(`⚠️ 确定删除成员「${memberName}」？\n\n删除后该成员无法再登录。\n其名下的客户数据不会被删除。`)){ return; }
+  if(!confirm(`<svg class="icon"><use href="#icon-warning"/></svg> 确定删除成员「${memberName}」？\n\n删除后该成员无法再登录。\n其名下的客户数据不会被删除。`)){ return; }
 
   try{
     const{error}=await supabaseClient.from('members').delete().eq('uid', memberUid).eq('name', memberName);
     if(error) throw error;
-    showToast(`✅ 成员「${memberName}」已删除`,'success');
+    showToast(`<svg class="icon"><use href="#icon-check-circle"/></svg> 成员「${memberName}」已删除`,'success');
     loadMemberList();
   } catch(err){
     showToast('删除失败：'+(err.message||JSON.stringify(err)),'error');
@@ -4322,11 +4356,11 @@ async function switchMemberRole(memberUid, memberName, newRole, selectEl){
     const affectedCount = updatedRows ? updatedRows.length : 0;
     console.log('[角色变更] 影响行数:', affectedCount, updatedRows);
     if(affectedCount !== 1){
-      showToast('⚠️ 预期更新1行，实际更新了'+affectedCount+'行，请检查数据唯一性','error');
+      showToast('<svg class="icon"><use href="#icon-warning"/></svg> 预期更新1行，实际更新了'+affectedCount+'行，请检查数据唯一性','error');
       loadMemberList();
       return;
     }
-    showToast(`✅「${memberName}」已${action}`,'success');
+    showToast(`<svg class="icon"><use href="#icon-check-circle"/></svg>「${memberName}」已${action}`,'success');
     loadMemberList();
   } catch(err){
     if(selectEl) selectEl.value = selectEl.dataset.current;
@@ -4401,7 +4435,7 @@ if(typeof loadAllCustomers === "function") window.loadAllCustomers = loadAllCust
 // Bridge: if IIFE failed to export functions (due to runtime error), 
 // this ensures the page at least doesn't crash on onclick
 if(typeof window.enterApp !== 'function') {
-  document.getElementById('result').innerHTML += '<p style="color:red">⚠️ enterApp 未加载，请刷新页面</p>';
+  document.getElementById('result').innerHTML += '<p style="color:red"><svg class="icon"><use href="#icon-warning"/></svg> enterApp 未加载，请刷新页面</p>';
 }
 </script>
 
