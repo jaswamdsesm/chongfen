@@ -207,7 +207,10 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
               _fuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd'
             );
             var _fuRole = _isAdminUser ? 'admin' : (fu.role || 'member');
-            window.currentUser = { name: _fuName || _fuUid, uid: _fuUid, role: _fuRole };
+            // 恢复用户之前保存的显示名称
+            var _dnKey = 'crm_display_name_' + (_fuUid || _fuName);
+            var _savedDN = localStorage.getItem(_dnKey);
+            window.currentUser = { name: _fuName || _fuUid, uid: _fuUid, role: _fuRole, displayName: _savedDN || undefined };
             localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
             // 异步同步 members 表（不阻塞进入系统）
             _syncFeishuUserToMembers(fu);
@@ -3424,8 +3427,13 @@ async function saveProfileName(){
     // 3. 更新本地存储和内存
     const oldName = currentUser.name;
     currentUser.name = newName;
+    currentUser.displayName = newName;
     localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
-    
+
+    // 保存显示名称（供侧边栏等处读取）
+    var _dnKey = 'crm_display_name_' + (currentUser.uid || currentUser.name);
+    localStorage.setItem(_dnKey, newName);
+
     // 标记已改名（只允许改一次）
     localStorage.setItem('crm_name_renamed_' + userKey, '1');
 
