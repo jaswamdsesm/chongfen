@@ -680,7 +680,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
     <button class="nav-item" id="navMemberMgr" data-page="memberManage" onclick="switchPage('memberManage',this)" style="display:none;"><span class="nav-icon">👥</span>成员管理</button>
     <div class="sidebar-user">
       <div class="user-name" id="sidebarUserName" style="text-align:center;font-size:16px;padding:8px 0;">当前用户：-</div>
-      <button class="btn-logout" onclick="doLogout()">退出登录</button>
+      <!-- 退出登录按钮已移除：飞书环境无需退出 -->
     </div>
   </aside>
 
@@ -909,7 +909,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
           <div class="card-title" style="margin-bottom:0;">成员列表</div>
-          <button class="btn btn-primary btn-sm" onclick="showAddMemberForm()">＋ 添加成员</button>
+          <!-- 按钮已移除：飞书免登自动同步成员，无需手动添加 -->
         </div>
         <!-- 添加成员表单（默认隐藏） -->
         <div id="addMemberForm" style="display:none;margin-bottom:18px;padding:16px;background:rgba(15,23,42,.5);border-radius:10px;border:1px solid rgba(148,163,184,.12);" class="add-member-form">
@@ -3406,7 +3406,7 @@ async function saveProfileName(){
     localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
 
     // 3. 更新侧边栏显示
-    document.getElementById('sidebarUserName').textContent = `当前用户：${newName} (${currentUser.uid})`;
+    document.getElementById('sidebarUserName').textContent = `当前用户：${newName}`;
     document.getElementById('profileCurrentName').value = newName;
     document.getElementById('profileNewName').value = '';
 
@@ -3768,7 +3768,7 @@ async function loadMemberList(){
     const isLight = document.body.classList.contains('light-mode');
     const isMeAdmin = isAdmin(); // 当前用户是否超级管理员
     const rows = members.map((m,i) => {
-      const isMe = m.uid === currentUser.uid;
+      const isMe = m.uid === currentUser.uid || (currentUser.name && m.name === currentUser.name);
       const nameColor = isMe ? '#d97706' : (isLight ? '#1e293b' : '#e2e8f0');
       const pwdColor = isLight ? '#4338ca' : '#818cf8';
       // 角色显示文字
