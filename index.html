@@ -220,7 +220,8 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
               _fuNumericId === '592631' ||
               _fuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd'
             );
-            var _fuRole = _isAdminUser ? 'admin' : (fu.role || 'member'); // 预绑定不强制覆盖role，等异步从DB同步真实角色
+            // ★ _fuRole 已在预绑定阶段确定（绑定表优先），这里只做 fallback
+            var _fuRole = _isAdminUser ? 'admin' : (_fuRole || fu.role || 'member');
             // 恢复用户之前保存的显示名称（多key fallback）
             var _savedDN = localStorage.getItem('crm_display_name_' + _fuUid)
               || localStorage.getItem('crm_display_name_' + _fuName)
