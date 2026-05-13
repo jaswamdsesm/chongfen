@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>客户信息库 v5.23</title>
+<title>客户信息库 v5.24</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051323'):('?_v=2026051323');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051324'):('?_v=2026051324');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -613,6 +613,9 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 </style>
 </head>
 <body>
+<!-- v5.24 最早执行标记 -->
+<div id="_bootDbg" style="position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#059669;color:#fff;padding:6px 12px;font-size:11px;font-family:monospace;text-align:center;">[BOOT] JS started <span id='_bootTime'></span></div>
+<script>document.getElementById('_bootTime').textContent=new Date().toLocaleTimeString();</script>
 <!-- 全屏 Loading（初始化/免登期间显示） -->
 <div id="appLoadingOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 50%,#0f172a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99998;transition:opacity .4s ease-out;">
   <div style="width:48px;height:48px;border:3px solid rgba(99,102,241,.2);border-top-color:#818cf8;border-radius:50%;animation:spin .7s linear infinite;"></div>
@@ -4124,6 +4127,22 @@ window.addEventListener('error', function(e){
     el.textContent = '[JS Error] ' + e.message + '\n' + (e.filename||'').split('/').pop() + ':' + e.lineno;
   }
 });
+</script>
+<!-- v5.24 脚本结束标记 -->
+<script>
+(function(){
+  var el = document.getElementById('_bootDbg');
+  if(el) {
+    el.style.background = '#2563eb';
+    el.innerHTML = '[BOOT OK] JS fully loaded | loadMemberList=' + (typeof loadMemberList) + ' | switchPage=' + (typeof switchPage) + ' | isAdmin=' + (typeof isAdmin) + ' | time=' + new Date().toLocaleTimeString();
+  } else {
+    // bootDbg 不存在，说明 body 开头都没执行到
+    var fb = document.createElement('div');
+    fb.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#dc2626;color:#fff;padding:6px 12px;font-size:11px;font-family:monospace;text-align:center;';
+    fb.textContent = '[ERROR] _bootDbg not found - script block may have crashed';
+    document.body.appendChild(fb);
+  }
+})();
 </script>
 </body>
 </html>
