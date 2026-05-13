@@ -278,7 +278,8 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
     // 超管识别
     var _fuNumId = String(fu.user_id || '');
     var _isSuper = (fu.is_admin === true || fu.is_admin === 'true') || (name === 'ALI' || name === 'Thomas' || _fuNumId === '592631' || feishuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd');
-    var targetRole = _isSuper ? 'admin' : (fu.role || 'member');
+    // 注意：targetRole 只用于新用户注册默认值；已存在成员以 DB 中的 role 为准（不覆盖）
+    var defaultRole = _isSuper ? 'admin' : (fu.role || 'member');
 
     // 延迟执行，确保 supabaseClient 已初始化
     setTimeout(function(){
@@ -296,29 +297,31 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
         .then(function(res){
           if(res.error){ console.warn('[免登同步] 查询失败:', res.error); return; }
           if(res.data && res.data.length > 0){
-            // 已存在 → 更新 uid（绑定新飞书身份到这条记录）和 role
+            // 已存在 → 用 DB 中的真实角色（不覆盖管理员手动设置的角色）
             var existing = res.data[0];
-            var updateObj = { role: targetRole };
+            var dbRole = existing.role || defaultRole;
+            var updateObj = {}; // 不再强制覆盖 role
+
             // 将飞书 open_id 也写入 uid 字段（支持多uid共存时优先精确匹配）
             // 如果是绑定模式，保留原有uid不变；否则更新为新uid
             if(!_bind && existing.uid !== feishuUid) { updateObj.uid = feishuUid; }
 
-            // 绑定模式：同时更新 currentUser 为目标成员信息
+            // 绑定模式：同时更新 currentUser 为目标成员信息（用 DB 角色）
             if(_bind && window.currentUser){
               var _oldRole = window.currentUser.role;
               window.currentUser.uid = existing.uid;
               window.currentUser.name = _targetName;
-              window.currentUser.role = targetRole;
+              window.currentUser.role = dbRole; // ★ 用 DB 真实角色
               localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
-              console.log('[免登同步] 🔗 绑定模式：当前用户→', _targetName, '('+existing.uid+') role='+targetRole);
+              console.log('[免登同步] 🔗 绑定模式：当前用户→', _targetName, '('+existing.uid+') dbRole='+dbRole);
               // 更新侧边栏显示
               var sun = document.getElementById('sidebarUserName');
               if(sun) sun.textContent = '当前用户：' + _targetName;
               var sunM = document.getElementById('sidebarUserNameMobile');
               if(sunM) sunM.textContent = '当前用户：' + _targetName;
               // ★ 角色变化时刷新权限相关UI（按钮显隐、表格重绘）
-              if(_oldRole !== targetRole){
-                console.log('[免登同步] 🔄 角色变化:', _oldRole, '→', targetRole, '刷新权限UI');
+              if(_oldRole !== dbRole){
+                console.log('[免登同步] 🔄 角色变化:', _oldRole, '→', dbRole, '刷新权限UI');
                 _refreshAuthUI();
               }
             }
@@ -328,11 +331,11 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
               if(uRes.error){
                 console.warn('[免登同步] 更新失败:', uRes.error);
               } else {
-                console.log('[免登同步] ✅ 成员已更新:', existing.name, 'uid:', existing.uid, '→', feishuUid, 'role=', targetRole);
+                console.log('[免登同步] ✅ 成员已更新:', existing.name, 'uid:', existing.uid, 'dbRole=', dbRole);
                 // 如果当前登录用户就是这个人且角色变了，更新 currentUser
                 if(window.currentUser && (window.currentUser.uid === feishuUid || window.currentUser.name === existing.name)){
-                  if(window.currentUser.role !== targetRole){
-                    window.currentUser.role = targetRole;
+                  if(window.currentUser.role !== dbRole){
+                    window.currentUser.role = dbRole;
                     localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
                     _refreshAuthUI();
                   }
@@ -3262,17 +3265,18 @@ async function loadAllCustomers(){
 // ============================================================
 function renderTable(data,isMine=false){
   const showOp = isAdmin() && !isMine; // 仅超管在全部客户页显示操作列
-  const canSeePhone = isManager(); // 管理员/超管可见完整号码，员工脱敏
+  const canSeePhone = isManager(); // 管理员/超管可见完整号码，员工脱敏（但自己的客户始终可见）
   const rows=data.map((c,i)=>{
     const country = detectCountry(c.phone);
     const countryTag = country ? `<span class="country-tag" title="${escHtml(country.country)}" style="background:${getCountryColor(country.code)}20;color:${getCountryColor(country.code)}">${country.country.split(' ')[0]}</span>` : '';
 
-    // 手机号：管理员/超管看明文，员工看脱敏（保留后4位）
+    // 手机号：管理员/超管看明文；员工看脱敏但**自己的客户**显示明文
+    const isMyCustomer = c.owner_name === currentUser.name;
     let phoneText = formatPhoneDisplay(c.phone);
-    if(!canSeePhone && c.phone){
+    if(!canSeePhone && c.phone && !isMyCustomer){
       phoneText = '•••••' + c.phone.slice(-4);
     }
-    const phoneAttr = canSeePhone ? '' : ' title="'+escHtml(c.phone)+'"';
+    const phoneAttr = (canSeePhone || isMyCustomer) ? '' : ' title="'+escHtml(c.phone)+'"';
 
     // 尝试次数
     const cnt = c.attempt_count || 1;
