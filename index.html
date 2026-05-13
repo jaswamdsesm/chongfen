@@ -275,16 +275,22 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
     var feishuUid = fu.feishu_user_id || fu.uid || '';
     var name = fu.name || '';
     var numericId = String(fu.user_id || '');
-    if(!feishuUid || !window.supabaseClient){ return; }
     
     // 超管识别
     var _fuNumId = String(fu.user_id || '');
     var _isSuper = (fu.is_admin === true || fu.is_admin === 'true') || (name === 'ALI' || name === 'Thomas' || _fuNumId === '592631' || feishuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd');
-    // 注意：targetRole 只用于新用户注册默认值；已存在成员以 DB 中的 role 为准（不覆盖）
     var defaultRole = _isSuper ? 'admin' : (fu.role || 'member');
 
-    // 延迟执行，确保 supabaseClient 已初始化
-    setTimeout(function(){
+    // ★ 轮询等待 supabaseClient 就绪（最多等5秒）
+    var _retryCount = 0;
+    function _doSync(){
+      if(!window.supabaseClient){
+        _retryCount++;
+        if(_retryCount < 50){ setTimeout(_doSync, 100); return; }
+        console.warn('[免登同步] ⏰ supabaseClient 5秒内未就绪，放弃同步');
+        return;
+      }
+
       try {
         var sb = window.supabaseClient;
 
@@ -369,7 +375,9 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
         })
         .catch(function(e){ console.warn('[免登同步] 异常:', e); });
       } catch(e2){ console.warn('[免登同步] 同步异常:', e2); }
-    }, 500);
+    }
+    // 启动轮询
+    _doSync();
   };
 })();
 </script>
