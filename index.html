@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>客户信息库 v5.24</title>
+<title>客户信息库 v5.25</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051324'):('?_v=2026051324');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051325'):('?_v=2026051325');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -3768,7 +3768,7 @@ function isManager(){
   return currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager');
 }
 
-/** 加载成员列表（从 members 表读取） 
+/** 加载成员列表（从 members 表读取） */
 async function loadMemberList(){
   const c = document.getElementById('memberList');
   // 调试：在任何判断之前显示状态（v5.22）
