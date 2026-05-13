@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>客户信息库 v5.21</title>
+<title>客户信息库 v5.22</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051321'):('?_v=2026051321');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051322'):('?_v=2026051322');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -3757,6 +3757,18 @@ function isManager(){
 /** 加载成员列表（从 members 表读取） 
 async function loadMemberList(){
   const c = document.getElementById('memberList');
+  // 调试：在任何判断之前显示状态（v5.22）
+  if(!window._memberDebugShown){
+    window._memberDebugShown = true;
+    var _dbgInfo = {hasSupabase:!!supabaseClient, isAdmin:isAdmin(), uid:currentUser?currentUser.uid:null, name:currentUser?currentUser.name:null};
+    var dbg = document.createElement('div');
+    dbg.id = '_memberDbg';
+    dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e293b;color:#e2e8f0;padding:10px 14px;font-size:12px;font-family:monospace;border-bottom:2px solid #3b82f6;line-height:1.6;';
+    dbg.innerHTML = '<b>[DEBUG v5.22]</b> ' + JSON.stringify(_dbgInfo);
+    document.body.prepend(dbg);
+    // 不自动消失，手动查看
+  }
+
   if(!supabaseClient){
     c.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>未连接</div>'; return;
   }
@@ -3772,16 +3784,9 @@ async function loadMemberList(){
     
     console.log('[成员列表] data:', JSON.stringify(members), 'error:', error);
 
-    // 调试：在页面顶部临时显示查询结果
-    if(!window._memberDebugShown){
-      window._memberDebugShown = true;
-      var dbg = document.createElement('div');
-      dbg.id = '_memberDbg';
-      dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e293b;color:#e2e8f0;padding:8px 14px;font-size:12px;font-family:monospace;border-bottom:2px solid #3b82f6;';
-      dbg.innerHTML = '<b>[DEBUG]</b> members=' + JSON.stringify(members) + ' | error=' + JSON.stringify(error);
-      document.body.prepend(dbg);
-      setTimeout(function(){if(dbg.parentNode){dbg.style.opacity='0';dbg.style.transition='.5s';setTimeout(function(){dbg.remove()},600)}}, 8000);
-    }
+    // 更新 debug 信息为查询结果
+    var _dbgEl = document.getElementById('_memberDbg');
+    if(_dbgEl) _dbgEl.innerHTML += '<br><b>[QUERY]</b> members=' + JSON.stringify(members) + ' | err=' + JSON.stringify(error);
 
     if(error) throw error;
 
