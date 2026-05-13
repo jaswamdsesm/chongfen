@@ -4044,13 +4044,13 @@ async function loadMemberList(){
     const isLight = document.body.classList.contains('light-mode');
     const isMeAdmin = isAdmin(); // 当前用户是否超级管理员
     const rows = members.map((m,i) => {
-      // v5.25: isMe 匹配 - uid 可能不一致（open_id vs 数字id），用多种方式匹配
+      // v5.26: isMe 匹配 - 优先用 name 精确匹配（uid 可能重复如 123）
       const _myUid = currentUser.uid || '';
-      const _myName = (currentUser.displayName || currentUser.name || '').toLowerCase();
-      const isMe = m.uid === _myUid
-        || (_myName && m.name && m.name.toLowerCase() === _myName)
-        // 兼容：当前用户是 ALI/Thomas 超管时也识别自己
-        || (_myName && (_myName.indexOf('ali') > -1 || _myName.indexOf('thomas') > -1) && (m.name === 'ALI' || m.name === 'Thomas'))
+      const _myName = (currentUser.displayName || currentUser.name || '');
+      const isMe = (_myName && m.name === _myName)  // ★ name 精确匹配优先（最可靠）
+        || m.uid === _myUid && members.filter(x=>x.uid===_myUid).length <= 1  // uid 匹配仅在唯一时有效
+        // 兼容：当前用户是 ALI/Thomas 超管
+        || (_myName && (_myName.indexOf('ali') > -1 || _myName.toLowerCase().indexOf('thomas') > -1) && (m.name === 'ALI' || m.name === 'Thomas'))
         // 兼容：members 表中 uid=592631 对应当前 open_id 用户
         || (m.uid === '592631' && _myUid.startsWith('ou_'));
       const nameColor = isMe ? '#d97706' : (isLight ? '#1e293b' : '#e2e8f0');
