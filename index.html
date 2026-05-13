@@ -208,7 +208,8 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
             if(_preBind){
               console.log('[免登] 🔗 预绑定命中:', _fuName, '→', _preBind.name, '('+_preBind.uid+')', 'role='+(_preBind.role||'inherit'));
               _fuName = _preBind.name || _fuName;  // 显示名直接用目标名
-              // 注意：uid 先保持原始 open_id（用于后续异步同步），显示名已替换
+              // ★ 绑定表配了role就直接用（避免异步延迟导致页面先以member渲染）
+              if(_preBind.role) _fuRole = _preBind.role;
             }
 
             // 超管识别：优先用 Edge Function 返回的 is_admin，fallback 多种方式
@@ -344,20 +345,20 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
             });
           } else {
             // 不存在 → 自动注册
-            console.log('[免登同步] 新用户注册:', name, 'role=', targetRole, 'uid=', feishuUid);
+            console.log('[免登同步] 新用户注册:', name, 'role=', defaultRole, 'uid=', feishuUid);
             return sb.from('members').insert({
               uid: feishuUid,
               name: name,
               password: '',
-              role: targetRole,
+              role: defaultRole,
               created_at: _cnISO()
             }).then(function(insRes){
               if(insRes.error){
                 console.warn('[免登同步] 注册失败:', insRes.error);
               } else {
-                console.log('[免登同步] ✅ 自动注册成功:', name, 'role=', targetRole);
-                if(window.currentUser && window.currentUser.uid === feishuUid && window.currentUser.role !== targetRole){
-                  window.currentUser.role = targetRole;
+                console.log('[免登同步] ✅ 自动注册成功:', name, 'role=', defaultRole);
+                if(window.currentUser && window.currentUser.uid === feishuUid && window.currentUser.role !== defaultRole){
+                  window.currentUser.role = defaultRole;
                   localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
                   showToast('欢迎首次使用，已自动注册为「'+name+'」','success');
                 }
