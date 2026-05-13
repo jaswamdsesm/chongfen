@@ -613,9 +613,6 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 </style>
 </head>
 <body>
-<!-- v5.24 最早执行标记 -->
-<div id="_bootDbg" style="position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#059669;color:#fff;padding:6px 12px;font-size:11px;font-family:monospace;text-align:center;">[BOOT] JS started <span id='_bootTime'></span></div>
-<script>document.getElementById('_bootTime').textContent=new Date().toLocaleTimeString();</script>
 <!-- 全屏 Loading（初始化/免登期间显示） -->
 <div id="appLoadingOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 50%,#0f172a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99998;transition:opacity .4s ease-out;">
   <div style="width:48px;height:48px;border:3px solid rgba(99,102,241,.2);border-top-color:#818cf8;border-radius:50%;animation:spin .7s linear infinite;"></div>
@@ -1542,7 +1539,11 @@ function enterApp(){
   if(window.supabaseClient && !supabaseClient) supabaseClient = window.supabaseClient;
   document.getElementById('loginPage').style.display='none';
   document.getElementById('appPage').classList.add('active');
-  document.getElementById('sidebarUserName').textContent=`当前用户：${currentUser.name}`;
+  // v5.25: 显示名优先使用已保存的显示名称（个人设置中改过的）
+  var _savedName = currentUser.displayName || localStorage.getItem('crm_display_name_' + (currentUser.uid || currentUser.name));
+  var _showName = _savedName || currentUser.name;
+  document.getElementById('sidebarUserName').textContent='当前用户：' + _showName;
+  if(_showName && _showName !== currentUser.name) currentUser.displayName = _showName;
   // 所有用户显示国家饼图
   document.getElementById('countryChartCard').style.display='';
   
@@ -1599,18 +1600,7 @@ function switchPage(pageId,btnEl){
   else if(pageId==='myCustomers')loadMyCustomers();
   else if(pageId==='allCustomers')loadAllCustomers();
   else if(pageId==='profile')loadProfile();
-  else if(pageId==='memberManage'){
-    console.log('[switchPage] about to call loadMemberList, typeof=', typeof loadMemberList);
-    // 全局调试浮层 - 立即显示（v5.23）
-    (function(){
-      var d=document.createElement('div');
-      d.id='_globalDbg';
-      d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:999999;background:#dc2626;color:#fff;padding:10px 14px;font-size:12px;font-family:monospace;border-bottom:2px solid #fbbf24;line-height:1.8;';
-      d.innerHTML='<b>[GLOBAL DEBUG v5.23]</b> pageId='+pageId+' | loadMemberList exists='+(typeof loadMemberList==='function')+' | time='+new Date().toLocaleTimeString();
-      document.body.prepend(d);
-    })();
-    loadMemberList();
-  }
+  else if(pageId==='memberManage')loadMemberList();
   else if(pageId==='orderManage'){resetOrderForm();loadOrders();}
 }
 
@@ -3771,18 +3761,6 @@ function isManager(){
 /** 加载成员列表（从 members 表读取） */
 async function loadMemberList(){
   const c = document.getElementById('memberList');
-  // 调试：在任何判断之前显示状态（v5.22）
-  if(!window._memberDebugShown){
-    window._memberDebugShown = true;
-    var _dbgInfo = {hasSupabase:!!supabaseClient, isAdmin:isAdmin(), uid:currentUser?currentUser.uid:null, name:currentUser?currentUser.name:null};
-    var dbg = document.createElement('div');
-    dbg.id = '_memberDbg';
-    dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e293b;color:#e2e8f0;padding:10px 14px;font-size:12px;font-family:monospace;border-bottom:2px solid #3b82f6;line-height:1.6;';
-    dbg.innerHTML = '<b>[DEBUG v5.22]</b> ' + JSON.stringify(_dbgInfo);
-    document.body.prepend(dbg);
-    // 不自动消失，手动查看
-  }
-
   if(!supabaseClient){
     c.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>未连接</div>'; return;
   }
@@ -3797,10 +3775,6 @@ async function loadMemberList(){
     const{data:members,error}=await supabaseClient.from('members').select('*').order('created_at',{ascending:true});
     
     console.log('[成员列表] data:', JSON.stringify(members), 'error:', error);
-
-    // 更新 debug 信息为查询结果
-    var _dbgEl = document.getElementById('_memberDbg');
-    if(_dbgEl) _dbgEl.innerHTML += '<br><b>[QUERY]</b> members=' + JSON.stringify(members) + ' | err=' + JSON.stringify(error);
 
     if(error) throw error;
 
@@ -3820,7 +3794,15 @@ async function loadMemberList(){
     const isLight = document.body.classList.contains('light-mode');
     const isMeAdmin = isAdmin(); // 当前用户是否超级管理员
     const rows = members.map((m,i) => {
-      const isMe = m.uid === currentUser.uid || (currentUser.name && m.name === currentUser.name);
+      // v5.25: isMe 匹配 - uid 可能不一致（open_id vs 数字id），用多种方式匹配
+      const _myUid = currentUser.uid || '';
+      const _myName = (currentUser.displayName || currentUser.name || '').toLowerCase();
+      const isMe = m.uid === _myUid
+        || (_myName && m.name && m.name.toLowerCase() === _myName)
+        // 兼容：当前用户是 ALI/Thomas 超管时也识别自己
+        || (_myName && (_myName.indexOf('ali') > -1 || _myName.indexOf('thomas') > -1) && (m.name === 'ALI' || m.name === 'Thomas'))
+        // 兼容：members 表中 uid=592631 对应当前 open_id 用户
+        || (m.uid === '592631' && _myUid.startsWith('ou_'));
       const nameColor = isMe ? '#d97706' : (isLight ? '#1e293b' : '#e2e8f0');
       const pwdColor = isLight ? '#4338ca' : '#818cf8';
       // 角色显示文字
@@ -4127,22 +4109,6 @@ window.addEventListener('error', function(e){
     el.textContent = '[JS Error] ' + e.message + '\n' + (e.filename||'').split('/').pop() + ':' + e.lineno;
   }
 });
-</script>
-<!-- v5.24 脚本结束标记 -->
-<script>
-(function(){
-  var el = document.getElementById('_bootDbg');
-  if(el) {
-    el.style.background = '#2563eb';
-    el.innerHTML = '[BOOT OK] JS fully loaded | loadMemberList=' + (typeof loadMemberList) + ' | switchPage=' + (typeof switchPage) + ' | isAdmin=' + (typeof isAdmin) + ' | time=' + new Date().toLocaleTimeString();
-  } else {
-    // bootDbg 不存在，说明 body 开头都没执行到
-    var fb = document.createElement('div');
-    fb.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#dc2626;color:#fff;padding:6px 12px;font-size:11px;font-family:monospace;text-align:center;';
-    fb.textContent = '[ERROR] _bootDbg not found - script block may have crashed';
-    document.body.appendChild(fb);
-  }
-})();
 </script>
 </body>
 </html>
