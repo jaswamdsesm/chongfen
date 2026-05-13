@@ -217,6 +217,12 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
             // 异步同步 members 表（不阻塞进入系统）
             _syncFeishuUserToMembers(fu);
             log('⑦免登成功:' + _fuName + ' (uid=' + _fuUid + ' user_id=' + _fuNumericId + ' role=' + _fuRole + ')');
+
+            // 临时：在页面显示当前飞书身份信息（用于配置绑定映射）
+            if(window.localStorage){
+              localStorage.setItem('_last_feishu_info', JSON.stringify({uid:_fuUid, name:_fuName, numericId:_fuNumericId, time:new Date().toISOString()}));
+            }
+
             return window.currentUser;
           } else {
             var errMsg = (data && data.error) ? data.error : '未知错误';
@@ -238,10 +244,18 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
 
   // 免登成功后，自动同步用户到 members 表（新员工默认 role=member）
   // ALI (feishu_user_id=592631) 固定为超管 admin
+  // 飞书身份 → 已有成员的绑定映射表（管理员配置）
+  // 格式: "飞书open_id": { uid: "目标uid", name: "显示名" }
+  window._FEISHU_BIND_MAP = {
+    // FD 的飞书 open_id 绑定到 ZY (uid:123) 账号
+    // 需要用 FD 登录一次拿到真实的 open_id 后填入，或用 user_id 匹配
+  };
+
   window._syncFeishuUserToMembers = function(fu){
     var feishuUid = fu.feishu_user_id || fu.uid || '';
     var name = fu.name || '';
-    if(!feishuUid || !name || !window.supabaseClient){ return; }
+    var numericId = String(fu.user_id || '');
+    if(!feishuUid || !window.supabaseClient){ return; }
     
     // 超管识别
     var _fuNumId = String(fu.user_id || '');
@@ -252,16 +266,38 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
     setTimeout(function(){
       try {
         var sb = window.supabaseClient;
-        // 先用 uid 查询，再用 name 兜底查询（兼容旧数据 uid 格式不一致）
-        sb.from('members').select('uid,name,role').or('uid.eq.' + feishuUid + ',name.eq.' + name)
+
+        // 1. 检查绑定映射表：如果当前飞书身份被绑定到已有成员，直接使用目标uid
+        var _bind = window._FEISHU_BIND_MAP[feishuUid] || window._FEISHU_BIND_MAP[numericId] || null;
+        var _targetUid = _bind ? (_bind.uid || feishuUid) : feishuUid;
+        var _targetName = _bind ? (_bind.name || name) : name;
+
+        // 2. 查询 members 表（优先用绑定后的目标uid，再用原始uid和name兜底）
+        sb.from('members').select('id,uid,name,role,password').or('uid.eq.'+_targetUid+',uid.eq.'+feishuUid+',name.eq.'+name+',name.eq.'+_targetName)
         .then(function(res){
           if(res.error){ console.warn('[免登同步] 查询失败:', res.error); return; }
           if(res.data && res.data.length > 0){
-            // 已存在 → 更新 uid（如果格式变了）和 role
+            // 已存在 → 更新 uid（绑定新飞书身份到这条记录）和 role
             var existing = res.data[0];
             var updateObj = { role: targetRole };
-            // 如果 uid 变了（从数字ID变成open_id），更新uid字段
-            if(existing.uid !== feishuUid) { updateObj.uid = feishuUid; }
+            // 将飞书 open_id 也写入 uid 字段（支持多uid共存时优先精确匹配）
+            // 如果是绑定模式，保留原有uid不变；否则更新为新uid
+            if(!_bind && existing.uid !== feishuUid) { updateObj.uid = feishuUid; }
+
+            // 绑定模式：同时更新 currentUser 为目标成员信息
+            if(_bind && window.currentUser){
+              window.currentUser.uid = existing.uid;
+              window.currentUser.name = _targetName;
+              window.currentUser.role = targetRole;
+              localStorage.setItem('crm_user', JSON.stringify(window.currentUser));
+              console.log('[免登同步] 🔗 绑定模式：当前用户→', _targetName, '('+existing.uid+')');
+              // 更新侧边栏显示
+              var sun = document.getElementById('sidebarUserName');
+              if(sun) sun.textContent = '当前用户：' + _targetName;
+              var sunM = document.getElementById('sidebarUserNameMobile');
+              if(sunM) sunM.textContent = '当前用户：' + _targetName;
+            }
+
             sb.from('members').update(updateObj).eq('id', existing.id)
             .then(function(uRes){
               if(uRes.error){
