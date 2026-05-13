@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051320'):('?_v=2026051320');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051321'):('?_v=2026051321');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -3771,6 +3771,17 @@ async function loadMemberList(){
     const{data:members,error}=await supabaseClient.from('members').select('*').order('created_at',{ascending:true});
     
     console.log('[成员列表] data:', JSON.stringify(members), 'error:', error);
+
+    // 调试：在页面顶部临时显示查询结果
+    if(!window._memberDebugShown){
+      window._memberDebugShown = true;
+      var dbg = document.createElement('div');
+      dbg.id = '_memberDbg';
+      dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e293b;color:#e2e8f0;padding:8px 14px;font-size:12px;font-family:monospace;border-bottom:2px solid #3b82f6;';
+      dbg.innerHTML = '<b>[DEBUG]</b> members=' + JSON.stringify(members) + ' | error=' + JSON.stringify(error);
+      document.body.prepend(dbg);
+      setTimeout(function(){if(dbg.parentNode){dbg.style.opacity='0';dbg.style.transition='.5s';setTimeout(function(){dbg.remove()},600)}}, 8000);
+    }
 
     if(error) throw error;
 
