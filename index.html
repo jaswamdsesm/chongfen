@@ -276,6 +276,12 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
     var name = fu.name || '';
     var numericId = String(fu.user_id || '');
     
+    // ★ 诊断：打印完整飞书用户信息
+    console.log('[免登同步] 📥 原始字段:', JSON.stringify(fu), '| 提取: feishuUid='+feishuUid, 'name='+name, 'numericId='+numericId);
+    
+    // 兜底：如果 open_id 为空，用 name 做 uid（确保新用户能注册）
+    if(!feishuUid && name){ feishuUid = 'feishu_'+name; }
+    
     // 超管识别
     var _fuNumId = String(fu.user_id || '');
     var _isSuper = (fu.is_admin === true || fu.is_admin === 'true') || (name === 'ALI' || name === 'Thomas' || _fuNumId === '592631' || feishuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd');
