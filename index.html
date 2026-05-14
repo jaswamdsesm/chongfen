@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051407'):('?_v=2026051407');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051408'):('?_v=2026051408');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -451,6 +451,49 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 /* 页面切换 */
 .page-section{display:none}.page-section.active{display:block;animation:fadeIn .25s ease-out}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ========== 群机器人页面（日夜模式自适应） ========== */
+.bot-section{padding:20px;border-bottom:1px solid var(--border-color,rgba(148,163,184,.12))}
+.bot-title{font-size:15px;color:var(--text-primary,#e2e8f0);margin-bottom:12px}
+.bot-desc{font-size:12px;color:var(--text-secondary,#94a3b8);margin-bottom:16px;line-height:1.6}
+/* 代码块 */
+.bot-code{border-radius:8px;padding:12px 16px;font-family:monospace;font-size:12px;word-break:break-all;margin-bottom:8px}
+.bot-code-green{background:var(--code-bg,rgba(15,23,42,.7));color:#059669;border:1px solid rgba(5,150,105,.2)}
+.bot-code-blue{background:var(--code-bg,rgba(15,23,42,.7));color:#0284c7;border:1px solid rgba(2,132,199,.2)}
+/* 测试框 */
+.bot-test-box{background:var(--test-bg,rgba(99,102,241,.08));border:1px solid var(--test-border,rgba(99,102,241,.25));border-radius:10px;padding:16px;margin-top:12px}
+.bot-subtitle{font-size:13px;color:#6366f1;margin-bottom:10px}
+.bot-input{flex:1;min-width:200px;padding:9px 12px;border-radius:8px;border:1px solid var(--input-border,rgba(99,102,241,.3));background:var(--input-bg,rgba(15,23,42,.6));color:var(--text-primary,#e2e8f0);font-size:13px;outline:none}
+.bot-input:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+/* 使用方式卡片 */
+.bot-tip{border-left:3px solid;padding:10px 14px;border-radius:0 8px 8px 0}
+.bot-tip-green{background:var(--tip-green-bg,rgba(5,150,105,.06));border-color:#059669}
+.bot-tip-blue{background:var(--tip-blue-bg,rgba(2,132,199,.06));border-color:#0284c7}
+.bot-tip-title-green{color:#059669;font-size:13px}
+.bot-tip-title-blue{color:#0284c7;font-size:13px}
+/* tag 样式 */
+.tag-purple{background:rgba(99,102,241,.12);color:#6366f1;padding:4px 10px;border-radius:5px;font-size:12px}
+.tag-green{background:rgba(5,150,105,.1);color:#059669;padding:4px 10px;border-radius:5px;font-size:12px}
+
+/* 日间模式覆盖 */
+body.light-mode .bot-title,
+body:not(.dark-mode) .bot-title{color:#1e293b}
+body.light-mode .bot-desc,
+body:not(.dark-mode) .bot-desc{color:#64748b}
+body.light-mode .bot-code-green,
+body:not(.dark-mode) .bot-code-green{background:#f0fdf4;color:#047857;border-color:rgba(5,150,105,.25)}
+body.light-mode .bot-code-blue,
+body:not(.dark-mode) .bot-code-blue{background:#eff6ff;color:#0369a1;border-color:rgba(2,132,199,.25)}
+body.light-mode .bot-test-box,
+body:not(.dark-mode) .bot-test-box{background:rgba(99,102,241,.05);border-color:rgba(99,102,241,.18)}
+body.light-mode .bot-input,
+body:not(.dark-mode) .bot-input{background:#fff;color:#1e293b;border-color:rgba(99,102,241,.25)}
+body.light-mode .bot-tip-green,
+body:not(.dark-mode) .bot-tip-green{background:rgba(5,150,105,.04)}
+body.light-mode .bot-tip-blue,
+body:not(.dark-mode) .bot-tip-blue{background:rgba(2,132,199,.04)}
+body.light-mode .tag-purple,
+body:not(.dark-mode) .tag-purple{background:rgba(99,102,241,.08);color:#4338ca}
 
 .page-header{margin-bottom:24px}.page-header h2{font-size:22px;font-weight:700;color:#f1f5f9}.page-header p{font-size:13px;color:#64748b;margin-top:4px}
 
@@ -1189,24 +1232,25 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
     </section>
 
     <!-- 群机器人设置页（仅超管可见） -->
+    <!-- 群机器人设置页（仅超管可见）—— 使用 .bot-section / .bot-code 等 class，由 CSS 控制日夜色 -->
     <section class="page-section" id="secBotManager">
       <div class="page-header">
         <h2><svg class="icon" style="width:22px;height:22px;vertical-align:middle;margin-right:6px;"><use href="#icon-bot"/></svg>群机器人设置</h2>
       </div>
       <div class="card" style="max-width:820px;margin:0 auto;">
         <!-- 飞书自定义机器人 Webhook -->
-        <div style="padding:20px;border-bottom:1px solid rgba(255,255,255,.06);">
-          <h3 style="font-size:15px;color:#e2e8f0;margin-bottom:12px;">🤖 群机器人 Webhook（已绑定）</h3>
-          <div style="background:#0f172a;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:12px;color:#34d399;word-break:break-all;border:1px solid rgba(52,211,153,.2);margin-bottom:16px;">
+        <div class="bot-section">
+          <h3 class="bot-title">🤖 群机器人 Webhook（已绑定）</h3>
+          <div class="bot-code bot-code-green">
             https://open.feishu.cn/open-apis/bot/v2/hook/359f9368-5dcb-498a-8f47-5372be10d707
           </div>
-          <p style="font-size:12px;color:#94a3b8;margin-bottom:16px;">此 webhook 用于将 CRM 查询/录入结果推送到飞书群。群里收到号码后自动查录并回复。</p>
+          <p class="bot-desc">此 webhook 用于将 CRM 查询/录入结果推送到飞书群。群里收到号码后自动查录并回复。</p>
 
           <!-- 快速测试 -->
-          <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:16px;margin-top:12px;">
-            <h4 style="font-size:13px;color:#a5b4fc;margin-bottom:10px;">🧪 快速测试</h4>
+          <div class="bot-test-box">
+            <h4 class="bot-subtitle">🧪 快速测试</h4>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <input type="text" id="botTestPhone" placeholder="输入手机号，如 +61 418 170 270" style="flex:1;min-width:200px;padding:9px 12px;border-radius:8px;border:1px solid rgba(99,102,241,.3);background:#0f172a;color:#e2e8f0;font-size:13px;outline:none;" onkeydown="if(event.key==='Enter')testBotWebhook()">
+              <input type="text" id="botTestPhone" class="bot-input" placeholder="输入手机号，如 +61 418 170 270" onkeydown="if(event.key==='Enter')testBotWebhook()">
               <button class="btn btn-primary" onclick="testBotWebhook()" style="font-size:13px;">测试发送到群</button>
             </div>
             <div id="botTestResult" style="margin-top:10px;display:none;"></div>
@@ -1214,38 +1258,38 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
         </div>
 
         <!-- Edge Function 地址 -->
-        <div style="padding:20px;border-bottom:1px solid rgba(255,255,255,.06);">
-          <h3 style="font-size:15px;color:#e2e8f0;margin-bottom:12px;">📡 Edge Function 地址（事件订阅 / API 调用）</h3>
-          <div style="background:#0f172a;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:12px;color:#38bdf8;word-break:break-all;border:1px solid rgba(56,189,248,.2);margin-bottom:8px;">
+        <div class="bot-section">
+          <h3 class="bot-title">📡 Edge Function 地址（事件订阅 / API 调用）</h3>
+          <div class="bot-code bot-code-blue">
             https://vekkbgscqpppcluhfwrv.supabase.co/functions/v1/bot-webhook
           </div>
-          <p style="font-size:12px;color:#94a3b8;">支持两种模式：<br/>① <strong>事件订阅</strong>：填入飞书开放平台 → 事件与回调 → 请求地址<br/>② <strong>API调用</strong>：POST {phone, sender_name} 触发查录并推送到群</p>
+          <p class="bot-desc">支持两种模式：<br/>① <strong>事件订阅</strong>：填入飞书开放平台 → 事件与回调 → 请求地址<br/>② <strong>API调用</strong>：POST {phone, sender_name} 触发查录并推送到群</p>
         </div>
 
         <!-- 使用说明 -->
-        <div style="padding:20px;">
-          <h3 style="font-size:15px;color:#e2e8f0;margin-bottom:10px;">📖 使用方式</h3>
+        <div class="bot-section">
+          <h3 class="bot-title">📖 使用方式</h3>
           <div style="display:grid;gap:10px;">
-            <div style="background:rgba(52,211,153,.06);border-left:3px solid #34d399;padding:10px 14px;border-radius:0 8px 8px 0;">
-              <strong style="color:#86efac;font-size:13px;">方式一：前端触发（推荐）</strong>
-              <p style="font-size:12px;color:#94a3b8;margin:4px 0 0;">在下方「快速测试」或后续的录入界面，提交号码后自动通过 webhook 推送结果到群。</p>
+            <div class="bot-tip bot-tip-green">
+              <strong class="bot-tip-title-green">方式一：前端触发（推荐）</strong>
+              <p class="bot-desc">在下方「快速测试」或后续的录入界面，提交号码后自动通过 webhook 推送结果到群。</p>
             </div>
-            <div style="background:rgba(56,189,248,.06);border-left:3px solid #38bdf8;padding:10px 14px;border-radius:0 8px 8px 0;">
-              <strong style="color:#7dd3fc;font-size:13px;">方式二：飞书事件订阅</strong>
-              <p style="font-size:12px;color:#94a3b8;margin:4px 0 0;">配置飞书应用事件订阅 → 群里@机器人发号码 → 自动查录并回复。</p>
+            <div class="bot-tip bot-tip-blue">
+              <strong class="bot-tip-title-blue">方式二：飞书事件订阅</strong>
+              <p class="bot-desc">配置飞书应用事件订阅 → 群里@机器人发号码 → 自动查录并回复。</p>
             </div>
           </div>
         </div>
 
         <!-- 号码格式 -->
-        <div style="padding:0 20px 20px;">
-          <h3 style="font-size:15px;color:#e2e8f0;margin-bottom:10px;">📝 支持的号码格式</h3>
+        <div class="bot-section" style="padding:0 20px 20px;">
+          <h3 class="bot-title">📝 支持的号码格式</h3>
           <div style="display:flex;flex-wrap:wrap;gap:6px;">
-            <span class="tag" style="background:rgba(99,102,241,.15);color:#a5b4fc;padding:4px 10px;border-radius:5px;font-size:12px;">+61 418 170 270</span>
-            <span class="tag" style="background:rgba(99,102,241,.15);color:#a5b4fc;padding:4px 10px;border-radius:5px;font-size:12px;">+61418170270</span>
-            <span class="tag" style="background:rgba(99,102,241,.15);color:#a5b4fc;padding:4px 10px;border-radius:5px;font-size:12px;">61418170270</span>
-            <span class="tag" style="background:rgba(34,197,94,.15);color:#86efac;padding:4px 10px;border-radius:5px;font-size:12px;">+86 138 0000 0000</span>
-            <span class="tag" style="background:rgba(34,197,94,.15);color:#86efac;padding:4px 10px;border-radius:5px;font-size:12px;">0086138000000000</span>
+            <span class="tag tag-purple">+61 418 170 270</span>
+            <span class="tag tag-purple">+61418170270</span>
+            <span class="tag tag-purple">61418170270</span>
+            <span class="tag tag-green">+86 138 0000 0000</span>
+            <span class="tag tag-green">0086138000000000</span>
           </div>
         </div>
       </div>
