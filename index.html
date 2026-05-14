@@ -2044,6 +2044,7 @@ async function loadDashboardStats(){
         window.__lastPieData={data:pieData,myOnly};
         renderCountryPieChart(pieData);
       }
+      }
     }catch(err){console.error(err);showToast('统计加载失败：'+(err.message||err),'error');}
 }
 
