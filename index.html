@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051401'):('?_v=2026051401');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051402'):('?_v=2026051402');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -1855,9 +1855,12 @@ function enterApp(){
   // 权限设置
   if(isManager()){
     document.getElementById('navMemberMgr').style.display='';
-    document.getElementById('navBotMgr').style.display='';
     document.getElementById('adminSummaryCard').style.display='';
     buildAdminMonthOptions();
+  }
+  // 群机器人仅超管可见
+  if(isAdmin()){
+    document.getElementById('navBotMgr').style.display='';
   }
   if(isAdmin()) document.getElementById('addMemRoleAdminOpt').style.display='';
   if(isManager() && !isAdmin()) {
@@ -4103,15 +4106,15 @@ function _refreshAuthUI(){
     // 成员管理按钮
     var nm = document.getElementById('navMemberMgr');
     if(nm) nm.style.display = isManager() ? '' : 'none';
-    // 群机器人按钮
+    // 群机器人按钮（仅超管）
     var nb = document.getElementById('navBotMgr');
-    if(nb) nb.style.display = isManager() ? '' : 'none';
+    if(nb) nb.style.display = isAdmin() ? '' : 'none';
     // 移动端成员管理选项
     var mo = document.getElementById('mobileMemberOpt') || document.getElementById('mobileMemberBtn');
     if(mo) mo.style.display = isManager() ? '' : 'none';
-    // 移动端群机器人选项
+    // 移动端群机器人选项（仅超管）
     var mb = document.getElementById('mobileBotBtn');
-    if(mb) mb.style.display = isManager() ? '' : 'none';
+    if(mb) mb.style.display = isAdmin() ? '' : 'none';
     // 销售汇总卡片
     var ac = document.getElementById('adminSummaryCard');
     if(ac) ac.style.display = isManager() ? '' : 'none';
