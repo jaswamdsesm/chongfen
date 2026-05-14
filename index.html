@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051411'):('?_v=2026051411');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051412'):('?_v=2026051412');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -848,7 +848,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
 <style>
 .icon{display:inline-block;vertical-align:middle;width:1em;height:1em;fill:currentColor;stroke:none}
 .nav-icon .icon{width:18px;height:18px}
-.theme-icon .icon{width:16px;height:16px}
+.theme-icon .icon{width:18px;height:18px}
 .sidebar-logo .icon{width:20px;height:20px;vertical-align:text-bottom;margin-right:2px}
 .card-title>.icon,.card-title+*>.icon{width:16px;height:16px;vertical-align:text-bottom;margin-right:2px}
 .btn .icon{width:15px;height:15px;vertical-align:text-bottom;margin-right:4px}
@@ -940,7 +940,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
       <button class="nav-item" data-page="searchCustomer" onclick="switchPage('searchCustomer',this)"><span class="nav-icon"><svg class="icon"><use href="#icon-search"/></svg></span>查询</button>
       <button class="nav-item" data-page="myCustomers" onclick="switchPage('myCustomers',this)"><span class="nav-icon"><svg class="icon"><use href="#icon-users"/></svg></span>我的客户</button>
       <button class="nav-item" data-page="allCustomers" onclick="switchPage('allCustomers',this)"><span class="nav-icon"><svg class="icon"><use href="#icon-clipboard-list"/></svg></span>全部客户</button>
-      <button class="nav-item" data-page="profile" onclick="switchPage('profile',this)"><span class="nav-icon"><svg class="icon"><use href="#icon-user"/></svg></span>个人设置</button>
+      
       <button class="nav-item" id="navMemberMgr" data-page="memberManage" onclick="switchPage('memberManage',this)" style="display:none;"><span class="nav-icon"><svg class="icon"><use href="#icon-users"/></svg></span>成员管理</button>
       
       <button class="nav-item" id="navBotMgr" data-page="botManager" onclick="switchPage('botManager',this)" style="display:none;"><span class="nav-icon"><svg class="icon"><use href="#icon-bot"/></svg></span>群机器人</button><!-- 主题切换 -->
@@ -962,7 +962,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
       <div class="mobile-more-menu" id="mobileMoreMenu">
         <button class="mobile-more-item" onclick="switchMobileTab('batchImport',this); toggleMobileMore();"><svg class="icon"><use href="#icon-download"/></svg> 批量导入</button>
         <button class="more-divider"></button>
-        <button class="mobile-more-item" onclick="switchMobileTab('profile',this); toggleMobileMore();"><svg class="icon"><use href="#icon-settings"/></svg> 个人设置</button>
+        
                 <button class="mobile-more-item" id="mobileBotBtn" style="display:none;" onclick="switchMobileTab('botManager',this); toggleMobileMore();"><svg class="icon"><use href="#icon-bot"/></svg> 群机器人</button>
         <button class="mobile-more-item" id="mobileMemberBtn" style="display:none;" onclick="switchMobileTab('memberManage',this); toggleMobileMore();"><svg class="icon"><use href="#icon-users"/></svg> 成员管理</button>
       </div>
@@ -1164,28 +1164,7 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
       <div id="allCustomersList"></div>
     </section>
 
-    <!-- 个人设置 -->
-    <section class="page-section" id="secProfile">
-      <div class="page-header"><h2>个人设置</h2><p>修改显示名称</p></div>
-      <div class="card">
-        <div class="card-title">基本信息</div>
-        <div class="form-group">
-          <label>当前显示名称</label>
-          <input type="text" id="profileCurrentName" disabled style="opacity:.6;background:rgba(15,23,42,.35);">
-        </div>
-        <div class="form-group">
-          <label>新名称 *（用于在系统中标识你，其他销售也能看到）</label>
-          <input type="text" id="profileNewName" placeholder="输入新的显示名称">
-        </div>
-        <div style="display:flex;gap:10px;margin-bottom:18px;">
-          <button class="btn btn-primary" onclick="saveProfileName()">保存名称修改</button>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">同步说明</div>
-        <p style="font-size:13px;color:#94a3b8;line-height:1.7;">修改名称后，系统会自动将你在数据库中<strong style="color:#e2e8f0;">所有已录入客户</strong>的 owner_name 同步更新为新名称。这个过程可能需要几秒钟，取决于你的客户数量。</p>
-      </div>
-    </section>
+
 
     <!-- 成员管理（仅ADMIN） -->
     <section class="page-section" id="secMemberManage">
@@ -1743,7 +1722,7 @@ const _globalFns = [
   'pickDateFrom','pickDateTo','showCustomDatePicker','toggleMyDatePicker','onMyCustomRange',
   'pickDateFromA','pickDateToA','showCustomDatePickerA','toggleAllDatePicker','onAllCustomRange',
   'buildAdminMonthOptions','buildAllMonthGrid','pickAllMonth','updateAllDateBtnText',
-  'loadProfile','saveProfileName',
+  
   'showAddMemberForm','hideAddMemberForm','doAddMember','deleteMember','switchMemberRole','fixMemberRoles','resetMemberPwd',
   'closeDupModal',
   'saveConfig','showConfigArea',
@@ -1798,8 +1777,6 @@ try { window.buildAdminMonthOptions = buildAdminMonthOptions; } catch(e){}
 try { window.buildAllMonthGrid = buildAllMonthGrid; } catch(e){}
 try { window.pickAllMonth = pickAllMonth; } catch(e){}
 try { window.updateAllDateBtnText = updateAllDateBtnText; } catch(e){}
-try { window.loadProfile = loadProfile; } catch(e){}
-try { window.saveProfileName = saveProfileName; } catch(e){}
 try { window.showAddMemberForm = showAddMemberForm; } catch(e){}
 try { window.hideAddMemberForm = hideAddMemberForm; } catch(e){}
 try { window.doAddMember = doAddMember; } catch(e){}
@@ -1990,7 +1967,7 @@ function switchPage(pageId,btnEl){
   if(pageId==='dashboard')loadDashboardStats();
   else if(pageId==='myCustomers')loadMyCustomers();
   else if(pageId==='allCustomers')loadAllCustomers();
-  else if(pageId==='profile')loadProfile();
+  
   else if(pageId==='memberManage')loadMemberList();
   else if(pageId==='orderManage'){resetOrderForm();loadOrders();}
 }
@@ -3781,87 +3758,6 @@ function addBatchLog(msg,type){
 
 function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 
-// ============================================================
-// 个人设置：改名 + 同步数据库
-// ============================================================
-function loadProfile(){
-  var el1=document.getElementById('profileCurrentName');
-  if(el1) el1.value = currentUser.name || '';
-  document.getElementById('profileNewName').value = '';
-  
-  // 如果已改名过，隐藏改名表单
-  var userKey = currentUser.uid || currentUser.name;
-  if(localStorage.getItem('crm_name_renamed_' + userKey)){
-    var nameForm = document.querySelector('#secProfile .form-group');
-    if(nameForm && nameForm.nextElementSibling && nameForm.nextElementSibling.tagName === 'DIV' 
-       && nameForm.nextElementSibling.style.display !== 'none'){
-      // 隐藏新名称输入框和保存按钮区域（保留当前名称显示）
-    }
-    var newLabel = document.getElementById('profileNewName');
-    if(newLabel) { newLabel.disabled=true; newLabel.placeholder='已使用改名机会'; }
-    var saveBtn = document.querySelector('#secProfile button[onclick="saveProfileName()"]');
-    if(saveBtn) { saveBtn.style.display='none'; saveBtn.textContent='已修改（仅超管可重置）'; }
-  }
-}
-
-async function saveProfileName(){
-  const newName = document.getElementById('profileNewName').value.trim();
-  if(!newName){showToast('请输入新名称','error');return;}
-  if(newName === currentUser.name){showToast('名称未变化','error');return;}
-
-  // 检查是否已经改过名字（name_renamed 标记）
-  var userKey = currentUser.uid || currentUser.name;
-  if(localStorage.getItem('crm_name_renamed_' + userKey)){
-    showToast('<svg class="icon"><use href="#icon-warning"/></svg> 名称只能修改一次，如需修改请联系超管在成员管理中重置','warning');
-    return;
-  }
-
-  if(!confirm(`确定将「${currentUser.name}」改为「${newName}」？\n\n<svg class="icon"><use href="#icon-warning"/></svg> 改名机会只有一次，请确认无误。`)){
-    return;
-  }
-
-  try{
-    // 1. 更新 customers 表中该 uid 的所有 owner_name
-    const { data: updated, error: updateError } = await supabaseClient
-      .from('customers')
-      .update({ owner_name: newName, updated_at: _cnISO() })
-      .eq('owner_uid', currentUser.uid)
-      .select('id');
-
-    if(updateError) throw updateError;
-
-    // 2. 同步更新 members 表的 name
-    const { error: memErr } = await supabaseClient
-      .from('members')
-      .update({ name: newName })
-      .eq('uid', currentUser.uid);
-    if(memErr) console.warn('members 表名称同步失败（可能成员不存在）:', memErr);
-
-    // 3. 更新本地存储和内存
-    const oldName = currentUser.name;
-    currentUser.name = newName;
-    currentUser.displayName = newName;
-    localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
-
-    // 保存显示名称（供侧边栏等处读取）
-    var _dnKey = 'crm_display_name_' + (currentUser.uid || currentUser.name);
-    localStorage.setItem(_dnKey, newName);
-
-    // 标记已改名（只允许改一次）
-    localStorage.setItem('crm_name_renamed_' + userKey, '1');
-
-    // 4. 更新侧边栏显示
-    document.getElementById('sidebarUserName').textContent = `当前用户：${newName}`;
-    document.getElementById('profileCurrentName').value = newName;
-    document.getElementById('profileNewName').value = '';
-
-    const count = updated ? updated.length : 0;
-    showToast(`<svg class="icon"><use href="#icon-check-circle"/></svg> 名称已更新为「${newName}」，同步了 ${count} 条客户记录`, 'success');
-  } catch(err){
-    console.error('改名失败:', err);
-    showToast('改名失败：'+(err.message||JSON.stringify(err)), 'error');
-  }
-}
 
 
 // （密码功能已移除，飞书免登无需密码）
@@ -4389,7 +4285,6 @@ async function resetMemberName(memberUid, memberName){
       currentUser.name = newName;
       localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
       document.getElementById('sidebarUserName').textContent = '当前用户：' + newName;
-      document.getElementById('profileCurrentName').value = newName;
     }
 
     showToast('<svg class="icon"><use href="#icon-check-circle"/></svg>「'+memberName+'」已重置为「'+newName+'」，该用户可重新修改一次','success');
@@ -4513,8 +4408,6 @@ if(typeof onBatchInputChange === "function") window.onBatchInputChange = onBatch
 if(typeof prepareBatchImport === "function") window.prepareBatchImport = prepareBatchImport;
 if(typeof startBatchImport === "function") window.startBatchImport = startBatchImport;
 if(typeof resetBatchImport === "function") window.resetBatchImport = resetBatchImport;
-if(typeof loadProfile === "function") window.loadProfile = loadProfile;
-if(typeof saveProfileName === "function") window.saveProfileName = saveProfileName;
 if(typeof changePassword === "function") window.changePassword = changePassword;
 if(typeof closeDupModal === "function") window.closeDupModal = closeDupModal;
 if(typeof escHtml === "function") window.escHtml = escHtml;
