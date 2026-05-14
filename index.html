@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051402'):('?_v=2026051402');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051403'):('?_v=2026051403');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -1174,6 +1174,50 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
           </div>
         </div>
         <div id="memberList"></div>
+      </div>
+    </section>
+
+    <!-- 群机器人设置页（仅超管可见） -->
+    <section class="page-section" id="secBotMgr" style="display:none;">
+      <div class="page-header">
+        <h2><svg class="icon" style="width:22px;height:22px;vertical-align:middle;margin-right:6px;"><use href="#icon-bot"/></svg>群机器人设置</h2>
+      </div>
+      <div class="card" style="max-width:800px;margin:0 auto;">
+        <div style="padding:20px;">
+          <h3 style="font-size:15px;color:#e2e8f0;margin-bottom:12px;">📡 Webhook 地址（飞书事件订阅）</h3>
+          <div style="background:#0f172a;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:13px;color:#38bdf8;word-break:break-all;border:1px solid rgba(56,189,248,.2);margin-bottom:8px;">
+            https://vekkbgscqpppcluhfwrv.supabase.co/functions/v1/bot-webhook
+          </div>
+          <p style="font-size:12px;color:#94a3b8;">复制此地址到 飞书开放平台 → 事件与回调 → 请求地址</p>
+        </div>
+        <div style="padding:0 20px 16px;">
+          <h3 style="font-size:15px;color:#e2e8f0;margin-bottom:10px;">⚙️ 配置步骤</h3>
+          <ol style="color:#cbd5e1;font-size:13px;line-height:2;padding-left:18px;">
+            <li>打开 <a href="https://open.feishu.cn/app" target="_blank" style="color:#38bdf8;text-decoration:none;">飞书开放平台</a> → 选择 CRM 应用</li>
+            <li>左侧「<strong>事件与回调</strong>」→ 开启事件订阅，填入上方 Webhook 地址</li>
+            <li>添加事件：<code style="background:#1e293b;padding:2px 6px;border-radius:4px;font-size:12px;color:#a78bfa;">im.message.receive_v1</code></li>
+            <li>将机器人<strong>拉进目标群聊</strong></li>
+            <li>群里直接发送号码即可自动录入/查重</li>
+          </ol>
+        </div>
+        <div style="padding:0 20px 20px;">
+          <h3 style="font-size:15px;color:#e2e8f0;margin-bottom:10px;">📝 支持的号码格式</h3>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <span class="tag" style="background:rgba(99,102,241,.15);color:#a5b4fc;padding:4px 10px;border-radius:5px;font-size:12px;">+61 418 170 270</span>
+            <span class="tag" style="background:rgba(99,102,241,.15);color:#a5b4fc;padding:4px 10px;border-radius:5px;font-size:12px;">+61418170270</span>
+            <span class="tag" style="background:rgba(99,102,241,.15);color:#a5b4fc;padding:4px 10px;border-radius:5px;font-size:12px;">61418170270</span>
+            <span class="tag" style="background:rgba(34,197,94,.15);color:#86efac;padding:4px 10px;border-radius:5px;font-size:12px;">+86 138 0000 0000</span>
+            <span class="tag" style="background:rgba(34,197,94,.15);color:#86efac;padding:4px 10px;border-radius:5px;font-size:12px;">0086138000000000</span>
+          </div>
+        </div>
+        <div style="padding:0 20px 16px;">
+          <h3 style="font-size:15px;color:#e2e8f0;margin-bottom:10px;">👤 用户匹配规则</h3>
+          <ul style="color:#cbd5e1;font-size:13px;line-height:1.9;padding-left:18px;">
+            <li>发送人名字 → 自动匹配 CRM 成员表的 <code style="background:#1e293b;padding:1px 5px;border-radius:3px;font-size:11px;color:#fbbf24;">name</code> 字段</li>
+            <li>匹配失败 → fallback 用飞书 open_id 查找 members 表</li>
+            <li>仍未找到 → 录入为 <em>未分配</em> 状态</li>
+          </ul>
+        </div>
       </div>
     </section>
 
