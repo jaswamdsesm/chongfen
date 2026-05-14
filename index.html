@@ -3649,7 +3649,7 @@ async function deleteCustomer(id){
   try{
     const{error}=await supabaseClient.from('customers').delete().eq('id',id);
     if(error)throw error;
-    showToast('已删除','success');loadMyCustomers();loadDashboardStats();
+    showToast('已删除','success');loadMyCustomers();loadAllCustomers();loadDashboardStats();
   }catch(err){showToast('删除失败：'+(err.message||err),'error');}
 }
 
