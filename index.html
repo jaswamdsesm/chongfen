@@ -458,18 +458,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 .bot-desc{font-size:13px;color:var(--text-secondary,#cbd5e1);margin-bottom:16px;line-height:1.7}
 /* 代码块 */
 .bot-code{border-radius:8px;padding:12px 16px;font-family:monospace;font-size:12px;word-break:break-all;margin-bottom:8px}
-.bot-code-green{background:rgba(6,78,59,.5);color:#6ee7b7;border:1px solid rgba(110,231,183,.2)}
 .bot-code-blue{background:rgba(30,64,175,.4);color:#93c5fd;border:1px solid rgba(147,197,253,.2)}
-/* 测试框 */
-.bot-test-box{background:rgba(99,102,241,.06);border:1px solid rgba(139,92,246,.2);border-radius:10px;padding:16px;margin-top:12px}
-.bot-subtitle{font-size:14px;color:#a5b4fc;font-weight:600;margin-bottom:10px}
-.bot-input{flex:1;min-width:200px;padding:9px 12px;border-radius:8px;border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.5);color:#e2e8f0;font-size:13px;outline:none}
-.bot-input:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.15)}
 /* 使用方式卡片 */
 .bot-tip{border-left:3px solid;padding:10px 14px;border-radius:0 8px 8px 0}
-.bot-tip-green{background:rgba(6,78,59,.25);border-color:#34d399}
 .bot-tip-blue{background:rgba(30,64,175,.2);border-color:#60a5fa}
-.bot-tip-title-green{color:#6ee7b7;font-size:13px;font-weight:600}
 .bot-tip-title-blue{color:#93c5fd;font-size:13px;font-weight:600}
 /* tag 样式 */
 .tag-purple{background:rgba(99,102,241,.12);color:#6366f1;padding:4px 10px;border-radius:5px;font-size:12px}
@@ -478,11 +470,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 /* 日间模式覆盖（仅 body.light-mode 生效，默认为暗色模式） */
 body.light-mode .bot-title{color:#1e293b}
 body.light-mode .bot-desc{color:#64748b}
-body.light-mode .bot-code-green{background:#f0fdf4;color:#047857;border-color:rgba(5,150,105,.25)}
+
 body.light-mode .bot-code-blue{background:#eff6ff;color:#0369a1;border-color:rgba(2,132,199,.25)}
-body.light-mode .bot-test-box{background:rgba(99,102,241,.05);border-color:rgba(99,102,241,.18)}
-body.light-mode .bot-input{background:#fff;color:#1e293b;border-color:rgba(99,102,241,.25)}
-body.light-mode .bot-tip-green{background:rgba(5,150,105,.04)}
+
+
 body.light-mode .bot-tip-blue{background:rgba(2,132,199,.04)}
 body.light-mode .tag-purple{background:rgba(99,102,241,.08);color:#4338ca}
 body.light-mode .tag-green{background:rgba(5,150,105,.08);color:#047857}
@@ -1230,45 +1221,22 @@ body.light-mode .role-select option:checked{background:rgba(99,102,241,.25);colo
         <h2><svg class="icon" style="width:22px;height:22px;vertical-align:middle;margin-right:6px;"><use href="#icon-bot"/></svg>群机器人设置</h2>
       </div>
       <div class="card" style="max-width:820px;margin:0 auto;">
-        <!-- 飞书自定义机器人 Webhook -->
+        <!-- Edge Function 地址（应用机器人事件订阅） -->
         <div class="bot-section">
-          <h3 class="bot-title">🤖 群机器人 Webhook（已绑定）</h3>
-          <div class="bot-code bot-code-green">
-            https://open.feishu.cn/open-apis/bot/v2/hook/359f9368-5dcb-498a-8f47-5372be10d707
-          </div>
-          <p class="bot-desc">此 webhook 用于将 CRM 查询/录入结果推送到飞书群。群里收到号码后自动查录并回复。</p>
-
-          <!-- 快速测试 -->
-          <div class="bot-test-box">
-            <h4 class="bot-subtitle">🧪 快速测试</h4>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <input type="text" id="botTestPhone" class="bot-input" placeholder="输入手机号，如 +61 418 170 270" onkeydown="if(event.key==='Enter')testBotWebhook()">
-              <button class="btn btn-primary" onclick="testBotWebhook()" style="font-size:13px;">测试发送到群</button>
-            </div>
-            <div id="botTestResult" style="margin-top:10px;display:none;"></div>
-          </div>
-        </div>
-
-        <!-- Edge Function 地址 -->
-        <div class="bot-section">
-          <h3 class="bot-title">📡 Edge Function 地址（事件订阅 / API 调用）</h3>
+          <h3 class="bot-title">📡 Edge Function 地址（事件订阅）</h3>
           <div class="bot-code bot-code-blue">
             https://vekkbgscqpppcluhfwrv.supabase.co/functions/v1/bot-webhook
           </div>
-          <p class="bot-desc">支持两种模式：<br/>① <strong>事件订阅</strong>：填入飞书开放平台 → 事件与回调 → 请求地址<br/>② <strong>API调用</strong>：POST {phone, sender_name} 触发查录并推送到群</p>
+          <p class="bot-desc">填入飞书开放平台 → 事件与回调 → 请求地址。群里 @机器人 发号码后自动查录并回复。</p>
         </div>
 
         <!-- 使用说明 -->
         <div class="bot-section">
           <h3 class="bot-title">📖 使用方式</h3>
           <div style="display:grid;gap:10px;">
-            <div class="bot-tip bot-tip-green">
-              <strong class="bot-tip-title-green">方式一：前端触发（推荐）</strong>
-              <p class="bot-desc">在下方「快速测试」或后续的录入界面，提交号码后自动通过 webhook 推送结果到群。</p>
-            </div>
             <div class="bot-tip bot-tip-blue">
-              <strong class="bot-tip-title-blue">方式二：飞书事件订阅</strong>
-              <p class="bot-desc">配置飞书应用事件订阅 → 群里@机器人发号码 → 自动查录并回复。</p>
+              <strong class="bot-tip-title-blue">飞书群 @机器人 录入</strong>
+              <p class="bot-desc">在飞书群内 @机器人 发送手机号 → 自动识别号码 → 查重/录入 CRM → 群内回复结果。支持国内外多种号码格式。</p>
             </div>
           </div>
         </div>
@@ -2024,51 +1992,6 @@ function switchPage(pageId,btnEl){
   else if(pageId==='profile')loadProfile();
   else if(pageId==='memberManage')loadMemberList();
   else if(pageId==='orderManage'){resetOrderForm();loadOrders();}
-}
-
-// ============================================================
-// 群机器人测试
-// ============================================================
-function testBotWebhook(){
-  var phoneInput = document.getElementById('botTestPhone');
-  var resultEl = document.getElementById('botTestResult');
-  if(!phoneInput || !resultEl) return;
-  var phone = phoneInput.value.trim();
-  if(!phone){
-    resultEl.style.display='block';
-    resultEl.innerHTML='<span style="color:#f87171;font-size:13px;">⚠️ 请输入手机号</span>';
-    return;
-  }
-  resultEl.style.display='block';
-  resultEl.innerHTML='<span style="color:#fbbf24;font-size:13px;">⏳ 正在查询/录入...</span>';
-  var BOT_URL = 'https://vekkbgscqpppcluhfwrv.supabase.co/functions/v1/bot-webhook';
-  fetch(BOT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      phone: phone,
-      sender_name: currentUser.name || '管理员',
-      sender_uid: currentUser.uid || '',
-      mode: 'auto'
-    })
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(data){
-    if(data.success){
-      var icon = data.result==='dup'?'⚠️':'✅';
-      resultEl.innerHTML = '<div style="padding:10px;background:rgba(52,211,153,.08);border-radius:8px;margin-top:6px;">'
-        + '<div style="font-size:13px;color:#86efac;font-weight:600;">'+icon+' '+data.result.toUpperCase()+'</div>'
-        + '<pre style="font-size:12px;color:#cbd5e1;white-space:pre-wrap;margin:6px 0 0;">'+(data.message||'')+'</pre>'
-        + '<div style="font-size:11px;color:'+ (data.sent_to_group ? '#34d399':'#94a3b8') +';margin-top:4px;">'
-        + (data.sent_to_group ? '📤 已推送到飞书群' : '⚠️ 未推送到群（webhook未配置）')
-        + '</div></div>';
-    } else {
-      resultEl.innerHTML = '<span style="color:#f87171;font-size:13px;">❌ '+(data.error||'未知错误')+'</span>';
-    }
-  })
-  .catch(function(err){
-    resultEl.innerHTML = '<span style="color:#f87171;font-size:13px;">❌ 网络错误：'+err.message+'</span>';
-  });
 }
 
 /** 移动端 Tab 切换 */
