@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051406'):('?_v=2026051406');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
+<script>(function(){if(location.search.indexOf('_v=')===-1){var s=location.search?(location.search+'&_v=2026051407'):('?_v=2026051407');history.replaceState(null,'',location.pathname+s+location.hash);}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 飞书 JSAPI SDK：必须手动引入，全局变量为 window.tt -->
 <!-- 主 CDN：飞书国内 -->
@@ -198,6 +198,11 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
             // 尝试从多个字段提取名字（飞书返回字段不固定）
             var _fuName = fu.name || fu.en_name || fu.username || '';
             if(!_fuName && fu.email) _fuName = String(fu.email).split('@')[0];
+            // ★ 强制名称覆盖：飞书脱敏返回"用户592631"时，强制显示为 ALI
+            if(_fuNumericId === '592631' || _fuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd' || _fuName === '用户592631'){
+              _fuName = 'ALI';
+              console.log('[免登] 🔧 强制名称: 592631 → ALI');
+            }
 
             // ★ 同步阶段预绑定：在设置 currentUser 之前就查映射表
             var _preBind = window._FEISHU_BIND_MAP && (
@@ -274,6 +279,12 @@ function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOf
     var feishuUid = fu.feishu_user_id || fu.uid || '';
     var name = fu.name || '';
     var numericId = String(fu.user_id || '');
+    
+    // ★ 强制名称覆盖：592631/用户592631 → ALI
+    if(numericId === '592631' || feishuUid === 'ou_8bb6a41f2dd84ba69bbcd15c656009bd' || name === '用户592631'){
+      name = 'ALI';
+      console.log('[免登同步] 🔧 强制名称: → ALI');
+    }
     
     // ★ 诊断：打印完整飞书用户信息
     console.log('[免登同步] 📥 原始字段:', JSON.stringify(fu), '| 提取: feishuUid='+feishuUid, 'name='+name, 'numericId='+numericId);
