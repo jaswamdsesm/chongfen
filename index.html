@@ -23,7 +23,7 @@
   document.head.appendChild(s2);
 "></script>
 <script>
-function _cnISO(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString();}
+function _cnISO(){const d=new Date();const utc=d.getTime()+d.getTimezoneOffset()*60000;return new Date(utc+8*3600000).toISOString().replace('Z','+08:00');}
 // (password login removed in v5.14 - feishu auto-login only)
 </script>
 <script>
@@ -3554,7 +3554,7 @@ async function deleteCustomer(id){
 // 工具函数
 // ============================================================
 function escHtml(str){if(str==null)return'-';const d=document.createElement('div');d.textContent=String(str);return d.innerHTML;}
-function formatTime(s){if(!s)return'-';const d=new Date(s),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;}
+function formatTime(s){if(!s)return'-';const d=new Date(s);const utc=d.getTime()+d.getTimezoneOffset()*60000;const bj=new Date(utc+8*3600000);const p=n=>String(n).padStart(2,'0');return`${bj.getFullYear()}-${p(bj.getMonth()+1)}-${p(bj.getDate())} ${p(bj.getHours())}:${p(bj.getMinutes())}`;}
 
 // ============================================================
 // 批量导入
